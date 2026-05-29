@@ -1,0 +1,73 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT:  fna-mumbai-prod
+  GCP_ZONE:     asia-south1-a
+  AR_HOST:      asia-south1-docker.pkg.dev
+  AR_IMAGE:     asia-south1-docker.pkg.dev/fna-mumbai-prod/mumbai-apps/voice-suite-frontend
+  WIF_PROVIDER: projects/425636353270/locations/global/workloadIdentityPools/github/providers/github
+  WIF_SA:       github-deployer@fna-mumbai-prod.iam.gserviceaccount.com
+  VM_NAME:      fna-website
+  APP_DIR_NAME: voice-suite-frontend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker $AR_HOST --quiet
+
+      - name: Write .env.build for branch ${{ github.ref_name }}
+        run: |
+          case "${{ github.ref_name }}" in
+            main)
+              cat > .env.build <<'EOF'
+          NODE_ENV=production
+          PORT=3000
+          HOSTNAME=0.0.0.0
+          TIMEZONE=Europe/London
+          NEXT_PUBLIC_BACKEND_API_URL=https://voice.fnatechnology.com/api
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID=146567566587-5r24sf4asjvoanssm2kpkaqd7k74j2ia.apps.googleusercontent.com
+          NEXT_PUBLIC_GOOGLE_REDIRECT_URI=https://voice.fnatechnology.com
+          EOF
+              ;;
+            *) echo "no config for ${{ github.ref_name }}"; exit 1 ;;
+          esac
+
+      - name: Build & push image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            -t $AR_IMAGE:${{ github.sha }} \
+            -t $AR_IMAGE:latest \
+            --push \
+            .
+
+      - name: Deploy on VM via IAP SSH
+        run: |
+          gcloud compute ssh $VM_NAME \
+            --tunnel-through-iap \
+            --zone=$GCP_ZONE \
+            --project=$GCP_PROJECT \
+            --quiet \
+            --command="sudo -u deploy_prod /opt/$APP_DIR_NAME/deploy.sh ${{ github.sha }}"

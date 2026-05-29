@@ -1,0 +1,108 @@
+name: Build, Push & Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set environment variables by branch
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "ECR_REPOSITORY=voice_website" >> $GITHUB_ENV
+            echo "DIR=voice_website" >> $GITHUB_ENV
+
+            echo "NEXT_PUBLIC_API_URL=https://voice.huemanai.co.uk/api" > .env.build
+          else
+            echo "ECR_REPOSITORY=voice_website_dev" >> $GITHUB_ENV
+            echo "DIR=voice_website_dev" >> $GITHUB_ENV
+
+            echo "NEXT_PUBLIC_API_URL=https://voicedev.huemanai.co.uk/api" > .env.build
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/Github_Action
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -t $ECR_REPOSITORY:$IMAGE_TAG \
+            .
+
+      - name: Tag Docker image for ECR
+        run: |
+          docker tag \
+            $ECR_REPOSITORY:$IMAGE_TAG \
+            ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Push image to ECR
+        run: |
+          docker push \
+            ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy via SSM (Blue/Green)
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:Name,Values=voice_suite" \
+            --parameters commands="[
+              \"set -e\",
+              \"sudo su deploy_prod\",
+              \"cd /opt/${DIR}\",
+              \"export IMAGE_TAG=${IMAGE_TAG}\",
+              \"./deploy.sh\"
+            ]" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "SSM command id: ${COMMAND_ID}"
+
+          while true; do
+            STATUS=$(aws ssm list-command-invocations \
+              --command-id "${COMMAND_ID}" \
+              --details \
+              --query "CommandInvocations[0].Status" \
+              --output text)
+
+            echo "SSM deployment status: ${STATUS}"
+
+            case "${STATUS}" in
+              Success)
+                break
+                ;;
+              Failed|Cancelled|TimedOut|Cancelling)
+                aws ssm list-command-invocations \
+                  --command-id "${COMMAND_ID}" \
+                  --details
+                exit 1
+                ;;
+              *)
+                sleep 10
+                ;;
+            esac
+          done

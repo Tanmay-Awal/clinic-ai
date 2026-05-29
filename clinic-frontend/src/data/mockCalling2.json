@@ -1,0 +1,693 @@
+{
+  "metadata": {
+    "restaurantName": "The Restaurant",
+    "botName": "Voice Bot",
+    "periodStart": "2026-02-26",
+    "periodEnd": "2026-03-05",
+    "totalCalls": 171,
+    "generatedAt": "2026-03-05T18:30:00Z",
+    "analysisVersion": "1.0"
+  },
+  "statistics": {
+    "totalCalls": 171,
+    "bookingIntentCalls": 132,
+    "successfulBookings": 28,
+    "failedBookings": 21,
+    "transferredCalls": 19,
+    "abandonedCalls": 24,
+    "averageDuration": "1m 46s",
+    "conversionRate": 21.2,
+    "transferRate": 11.1,
+    "totalCoversBooked": 112,
+    "estimatedCoversLost": 105
+  },
+  "executiveSummary": {
+    "criticalFinding": "The restaurant is leaking bookings during high-intent calls due to availability rigidity and booking friction. At least 21 booking attempts failed, with multiple callers declining alternatives when their preferred slot was unavailable.",
+    "revenueImpact": "Estimated 105 covers lost during the period. At £55 average cover value this represents roughly £5,775 in unrealised revenue.",
+    "immediateAction": "Introduce automated alternative slot suggestions and waitlist capture for fully booked periods. The bot should propose nearby times immediately rather than ending the call after one unavailable slot."
+  },
+  "revenueInsights": [
+    {
+      "id": "rev_1",
+      "insightNumber": 1,
+      "headline": "Peak lunch slots are turning away demand",
+      "category": "Demand vs Capacity",
+      "urgency": "High",
+      "signal": {
+        "description": "Multiple callers requested lunch around 12:30–13:30 and were rejected.",
+        "callCount": 3,
+        "examples": [
+          "Call 16: lunch for four at 1 PM declined after alternative offered at 2:15 PM. Call 18: lunch request at 12:45 declined when unavailable."
+        ],
+        "timePattern": "Various times"
+      },
+      "impact": {
+        "description": "Lost midday covers where demand already exists.",
+        "coversAffected": 15,
+        "revenueEstimate": 800,
+        "recurringRisk": true
+      },
+      "reasoning": "Calls 15, 16 and 18 show callers requesting lunch around 12:45–1:00 but declining later times such as 2:15 PM. When alternatives are too far away, guests simply abandon.",
+      "action": {
+        "description": "Introduce tighter slot increments (e.g., 15-minute seating) and offer earlier/later nearby options immediately.",
+        "owner": "Front of House",
+        "timeline": "this_week"
+      },
+      "evidence": {
+        "quotes": [
+          "Call 16: lunch for four at 1 PM declined after alternative offered at 2:15 PM. Call 18: lunch request at 12:45 declined when unavailable."
+        ]
+      }
+    },
+    {
+      "id": "rev_2",
+      "insightNumber": 2,
+      "headline": "Large group demand signal being under-captured",
+      "category": "High Value Opportunities",
+      "urgency": "High",
+      "signal": {
+        "description": "Several large-party requests required manual follow-up rather than immediate booking.",
+        "callCount": 3,
+        "examples": [
+          "Call 55: request for 80-person booking sent to front office via email rather than secured."
+        ],
+        "timePattern": "Various times"
+      },
+      "impact": {
+        "description": "Large parties represent £400–£4,000 revenue per booking.",
+        "coversAffected": 15,
+        "revenueEstimate": 800,
+        "recurringRisk": true
+      },
+      "reasoning": "Calls 55 (80 guests), 105 (65 guests Christmas event) and 163 (9 guests) required escalation to the team rather than instant booking.",
+      "action": {
+        "description": "Create a structured large-party capture flow that collects date, guest count and contact details then schedules an events callback automatically.",
+        "owner": "Front of House",
+        "timeline": "this_week"
+      },
+      "evidence": {
+        "quotes": [
+          "Call 55: request for 80-person booking sent to front office via email rather than secured."
+        ]
+      }
+    },
+    {
+      "id": "rev_3",
+      "insightNumber": 3,
+      "headline": "Mother’s Day demand spike emerging two weeks early",
+      "category": "Demand Forecasting",
+      "urgency": "High",
+      "signal": {
+        "description": "Multiple enquiries about Mother’s Day bookings.",
+        "callCount": 3,
+        "examples": [
+          "Call 147: booking for 11 guests breakfast. Call 148: Mother’s Day booking enquiry requiring deposit."
+        ],
+        "timePattern": "Various times"
+      },
+      "impact": {
+        "description": "High-value service day with premium spend potential.",
+        "coversAffected": 15,
+        "revenueEstimate": 800,
+        "recurringRisk": true
+      },
+      "reasoning": "Calls 9, 74, 124, 131, 144, 147, 148 and 158 all reference Mother’s Day reservations.",
+      "action": {
+        "description": "Pre-sell remaining seats via outbound SMS or email campaigns and enforce deposits to secure covers.",
+        "owner": "Front of House",
+        "timeline": "this_week"
+      },
+      "evidence": {
+        "quotes": [
+          "Call 147: booking for 11 guests breakfast. Call 148: Mother’s Day booking enquiry requiring deposit."
+        ]
+      }
+    },
+    {
+      "id": "rev_4",
+      "insightNumber": 4,
+      "headline": "Operational questions indicate unclear website information",
+      "category": "Customer Intelligence",
+      "urgency": "Medium",
+      "signal": {
+        "description": "Repeated calls asking about lift availability, directions, and menus.",
+        "callCount": 3,
+        "examples": [
+          "Call 171: guest asked whether the lift would be working during a May visit."
+        ],
+        "timePattern": "Various times"
+      },
+      "impact": {
+        "description": "Front-of-house time consumed by basic questions instead of bookings.",
+        "coversAffected": 15,
+        "revenueEstimate": 800,
+        "recurringRisk": true
+      },
+      "reasoning": "Calls 19, 106, 154, 171 ask about lift accessibility. Calls 46 and 48 request directions.",
+      "action": {
+        "description": "Add accessibility status and directions prominently to website and booking confirmation emails.",
+        "owner": "Front of House",
+        "timeline": "this_week"
+      },
+      "evidence": {
+        "quotes": [
+          "Call 171: guest asked whether the lift would be working during a May visit."
+        ]
+      }
+    },
+    {
+      "id": "rev_5",
+      "insightNumber": 5,
+      "headline": "Customers asking for services the restaurant does not offer",
+      "category": "Menu Intelligence",
+      "urgency": "Medium",
+      "signal": {
+        "description": "Multiple callers asking about afternoon tea.",
+        "callCount": 3,
+        "examples": [
+          "Call 20: caller asked about afternoon tea and ended call after learning it was unavailable."
+        ],
+        "timePattern": "Various times"
+      },
+      "impact": {
+        "description": "Potential missed upsell opportunity.",
+        "coversAffected": 15,
+        "revenueEstimate": 800,
+        "recurringRisk": true
+      },
+      "reasoning": "Calls 20, 49 and 164 show guests asking for afternoon tea but being told it is not available.",
+      "action": {
+        "description": "Either introduce limited afternoon tea or add a scripted upsell for lunch bookings instead.",
+        "owner": "Front of House",
+        "timeline": "this_week"
+      },
+      "evidence": {
+        "quotes": [
+          "Call 20: caller asked about afternoon tea and ended call after learning it was unavailable."
+        ]
+      }
+    },
+    {
+      "id": "rev_6",
+      "insightNumber": 6,
+      "headline": "Special occasions are frequent booking drivers",
+      "category": "Customer Intent",
+      "urgency": "Medium",
+      "signal": {
+        "description": "Multiple bookings mention birthdays, anniversaries and dates.",
+        "callCount": 3,
+        "examples": [
+          "Call 37 included Prosecco request for first date."
+        ],
+        "timePattern": "Various times"
+      },
+      "impact": {
+        "description": "These bookings typically generate higher spend.",
+        "coversAffected": 15,
+        "revenueEstimate": 800,
+        "recurringRisk": true
+      },
+      "reasoning": "Calls 37 (first date), 82 (birthday breakfast), 135 (anniversary), 169 (mother's birthday).",
+      "action": {
+        "description": "Train the bot to upsell wine, desserts or celebration packages when special occasions are detected.",
+        "owner": "Front of House",
+        "timeline": "this_week"
+      },
+      "evidence": {
+        "quotes": [
+          "Call 37 included Prosecco request for first date."
+        ]
+      }
+    },
+    {
+      "id": "rev_7",
+      "insightNumber": 7,
+      "headline": "Booking abandonment during data collection",
+      "category": "Conversion Friction",
+      "urgency": "High",
+      "signal": {
+        "description": "Several callers hang up when asked for contact details.",
+        "callCount": 3,
+        "examples": [
+          "Call 97 ended after the agent asked for email confirmation."
+        ],
+        "timePattern": "Various times"
+      },
+      "impact": {
+        "description": "Confirmed availability but lost booking.",
+        "coversAffected": 15,
+        "revenueEstimate": 800,
+        "recurringRisk": true
+      },
+      "reasoning": "Calls 96, 97, 101, 102 and 103 show callers disconnecting during name or email capture.",
+      "action": {
+        "description": "Reduce required fields and confirm booking before collecting optional details.",
+        "owner": "Front of House",
+        "timeline": "this_week"
+      },
+      "evidence": {
+        "quotes": [
+          "Call 97 ended after the agent asked for email confirmation."
+        ]
+      }
+    }
+  ],
+  "botPerformanceIssues": [
+    {
+      "id": "bot_1",
+      "issueNumber": 1,
+      "title": "Booking drop-off during contact detail capture",
+      "category": "Conversion",
+      "priority": "High",
+      "problem": {
+        "description": "Users frequently hang up when the bot asks for full contact details before confirming the booking.",
+        "frequency": 5,
+        "examples": [
+          "Caller hung up during prompt"
+        ]
+      },
+      "callerImpact": {
+        "description": "Guests abandon the process despite confirmed availability.",
+        "frustratedCallers": 3,
+        "lostBookings": 2,
+        "transfersTriggered": 4
+      },
+      "trainingRecommendation": {
+        "description": "Confirm reservation first, then collect optional details after.",
+        "specificFix": "Update dialog flow node 4",
+        "estimatedEffort": "quick_fix"
+      }
+    },
+    {
+      "id": "bot_2",
+      "issueNumber": 2,
+      "title": "Alternative time suggestions too wide",
+      "category": "Conversation Design",
+      "priority": "High",
+      "problem": {
+        "description": "When requested slots are unavailable, alternatives offered are hours apart.",
+        "frequency": 5,
+        "examples": [
+          "Caller hung up during prompt"
+        ]
+      },
+      "callerImpact": {
+        "description": "Customers decline options and abandon booking.",
+        "frustratedCallers": 3,
+        "lostBookings": 2,
+        "transfersTriggered": 4
+      },
+      "trainingRecommendation": {
+        "description": "Offer nearest two slots within ±30 minutes automatically.",
+        "specificFix": "Update dialog flow node 4",
+        "estimatedEffort": "quick_fix"
+      }
+    },
+    {
+      "id": "bot_3",
+      "issueNumber": 3,
+      "title": "High transfer dependency for operational queries",
+      "category": "Knowledge",
+      "priority": "Medium",
+      "problem": {
+        "description": "The bot transfers calls for lost items, vouchers and staff requests.",
+        "frequency": 5,
+        "examples": [
+          "Caller hung up during prompt"
+        ]
+      },
+      "callerImpact": {
+        "description": "Longer resolution times and additional workload on staff.",
+        "frustratedCallers": 3,
+        "lostBookings": 2,
+        "transfersTriggered": 4
+      },
+      "trainingRecommendation": {
+        "description": "Add structured flows for lost property, vouchers and deposit payments.",
+        "specificFix": "Update dialog flow node 4",
+        "estimatedEffort": "quick_fix"
+      }
+    },
+    {
+      "id": "bot_4",
+      "issueNumber": 4,
+      "title": "Guests questioning if the bot is real",
+      "category": "Trust",
+      "priority": "Medium",
+      "problem": {
+        "description": "Some callers suspect they are speaking to an automated system.",
+        "frequency": 5,
+        "examples": [
+          "Caller hung up during prompt"
+        ]
+      },
+      "callerImpact": {
+        "description": "Reduced trust and potential early call termination.",
+        "frustratedCallers": 3,
+        "lostBookings": 2,
+        "transfersTriggered": 4
+      },
+      "trainingRecommendation": {
+        "description": "Improve conversational fillers and natural acknowledgement phrases.",
+        "specificFix": "Update dialog flow node 4",
+        "estimatedEffort": "quick_fix"
+      }
+    },
+    {
+      "id": "bot_5",
+      "issueNumber": 5,
+      "title": "Limited ability to modify bookings directly",
+      "category": "System Integration",
+      "priority": "Medium",
+      "problem": {
+        "description": "Several booking changes require manual follow-up via email.",
+        "frequency": 5,
+        "examples": [
+          "Caller hung up during prompt"
+        ]
+      },
+      "callerImpact": {
+        "description": "Guests leave without confirmation of requested changes.",
+        "frustratedCallers": 3,
+        "lostBookings": 2,
+        "transfersTriggered": 4
+      },
+      "trainingRecommendation": {
+        "description": "Enable live modification of bookings within reservation system.",
+        "specificFix": "Update dialog flow node 4",
+        "estimatedEffort": "quick_fix"
+      }
+    }
+  ],
+  "strategicRecommendations": [
+    {
+      "id": "rec_1",
+      "recommendationNumber": 1,
+      "title": "Introduce automated waitlist conversion",
+      "category": "Revenue Optimization",
+      "basedOn": [
+        "rev_1",
+        "rev_7"
+      ],
+      "opportunity": {
+        "description": "Capture bookings that currently drop when slots are unavailable.",
+        "potentialImpact": "High revenue gain"
+      },
+      "implementation": {
+        "immediate": [
+          "Offer waitlist immediately and send SMS confirmation with available times if cancellations occur."
+        ],
+        "shortTerm": [
+          "Monitor results"
+        ],
+        "ongoing": [
+          "Iterate on script"
+        ]
+      },
+      "successMetric": "Recover 30–40 additional covers per week."
+    },
+    {
+      "id": "rec_2",
+      "recommendationNumber": 2,
+      "title": "Create celebration upsell packages",
+      "category": "Revenue Expansion",
+      "basedOn": [
+        "rev_6"
+      ],
+      "opportunity": {
+        "description": "Special occasions appear in many bookings and can increase average spend.",
+        "potentialImpact": "High revenue gain"
+      },
+      "implementation": {
+        "immediate": [
+          "Offer wine, cake or celebration packages when the bot detects birthdays or anniversaries."
+        ],
+        "shortTerm": [
+          "Monitor results"
+        ],
+        "ongoing": [
+          "Iterate on script"
+        ]
+      },
+      "successMetric": "Increase average cover value by £6–£10."
+    },
+    {
+      "id": "rec_3",
+      "recommendationNumber": 3,
+      "title": "Launch pre-selling campaign for Mother’s Day",
+      "category": "Demand Management",
+      "basedOn": [
+        "rev_3"
+      ],
+      "opportunity": {
+        "description": "High booking interest already visible in call data.",
+        "potentialImpact": "High revenue gain"
+      },
+      "implementation": {
+        "immediate": [
+          "Email and SMS campaigns promoting limited remaining tables with deposit requirement."
+        ],
+        "shortTerm": [
+          "Monitor results"
+        ],
+        "ongoing": [
+          "Iterate on script"
+        ]
+      },
+      "successMetric": "100% seat occupancy for Mother's Day services."
+    },
+    {
+      "id": "rec_4",
+      "recommendationNumber": 4,
+      "title": "Improve website operational information",
+      "category": "Operational Efficiency",
+      "basedOn": [
+        "rev_4",
+        "rev_5"
+      ],
+      "opportunity": {
+        "description": "Reduce non-booking calls.",
+        "potentialImpact": "High revenue gain"
+      },
+      "implementation": {
+        "immediate": [
+          "Add clear pages for accessibility, directions, menus and service types."
+        ],
+        "shortTerm": [
+          "Monitor results"
+        ],
+        "ongoing": [
+          "Iterate on script"
+        ]
+      },
+      "successMetric": "Reduce informational calls by 20%."
+    }
+  ],
+  "callPatterns": {
+    "byDayOfWeek": [
+      {
+        "day": "Thursday",
+        "count": 28,
+        "bookings": 8
+      },
+      {
+        "day": "Friday",
+        "count": 41,
+        "bookings": 12
+      },
+      {
+        "day": "Saturday",
+        "count": 37,
+        "bookings": 11
+      },
+      {
+        "day": "Sunday",
+        "count": 18,
+        "bookings": 5
+      },
+      {
+        "day": "Monday",
+        "count": 16,
+        "bookings": 4
+      },
+      {
+        "day": "Tuesday",
+        "count": 23,
+        "bookings": 6
+      },
+      {
+        "day": "Wednesday",
+        "count": 8,
+        "bookings": 2
+      }
+    ],
+    "byHourOfDay": [
+      {
+        "hour": 12,
+        "count": 10,
+        "bookings": 3
+      },
+      {
+        "hour": 13,
+        "count": 12,
+        "bookings": 3
+      },
+      {
+        "hour": 14,
+        "count": 14,
+        "bookings": 4
+      },
+      {
+        "hour": 15,
+        "count": 13,
+        "bookings": 3
+      },
+      {
+        "hour": 16,
+        "count": 15,
+        "bookings": 4
+      },
+      {
+        "hour": 17,
+        "count": 16,
+        "bookings": 4
+      },
+      {
+        "hour": 18,
+        "count": 20,
+        "bookings": 6
+      },
+      {
+        "hour": 19,
+        "count": 18,
+        "bookings": 5
+      },
+      {
+        "hour": 20,
+        "count": 16,
+        "bookings": 4
+      },
+      {
+        "hour": 21,
+        "count": 10,
+        "bookings": 3
+      },
+      {
+        "hour": 22,
+        "count": 9,
+        "bookings": 2
+      },
+      {
+        "hour": 23,
+        "count": 8,
+        "bookings": 2
+      }
+    ],
+    "byOutcome": [
+      {
+        "outcome": "bookingsCompleted",
+        "count": 28,
+        "percentage": 19
+      },
+      {
+        "outcome": "bookingAttemptFailed",
+        "count": 21,
+        "percentage": 14
+      },
+      {
+        "outcome": "informationOnly",
+        "count": 54,
+        "percentage": 37
+      },
+      {
+        "outcome": "transferred",
+        "count": 19,
+        "percentage": 13
+      },
+      {
+        "outcome": "abandoned",
+        "count": 24,
+        "percentage": 16
+      }
+    ],
+    "byPartySize": [
+      {
+        "size": "1-2",
+        "count": 16
+      },
+      {
+        "size": "3-4",
+        "count": 7
+      },
+      {
+        "size": "5-6",
+        "count": 3
+      },
+      {
+        "size": "7-10",
+        "count": 1
+      },
+      {
+        "size": "10+",
+        "count": 1
+      }
+    ],
+    "topQuestions": [
+      {
+        "question": "Do you have afternoon tea?",
+        "count": 8,
+        "answered": false
+      },
+      {
+        "question": "Is the lift working?",
+        "count": 22,
+        "answered": true
+      },
+      {
+        "question": "What are your opening hours?",
+        "count": 7,
+        "answered": false
+      },
+      {
+        "question": "Do you offer Jain or vegetarian food?",
+        "count": 16,
+        "answered": false
+      },
+      {
+        "question": "Where are you located / directions?",
+        "count": 8,
+        "answered": true
+      }
+    ],
+    "topSpecialRequests": [
+      {
+        "request": "Birthday celebrations",
+        "count": 4
+      },
+      {
+        "request": "Anniversary bookings",
+        "count": 7
+      },
+      {
+        "request": "Dietary requirements (Jain, gluten free, vegan)",
+        "count": 13
+      },
+      {
+        "request": "Window tables",
+        "count": 7
+      },
+      {
+        "request": "Wine or prosecco requests",
+        "count": 2
+      }
+    ]
+  },
+  "rawDataSummary": {
+    "callsAnalyzed": 171,
+    "dataQualityScore": 0.86,
+    "missingFields": [
+      "party size missing in some booking calls",
+      "exact booking confirmation status unclear in several summaries"
+    ]
+  }
+}
