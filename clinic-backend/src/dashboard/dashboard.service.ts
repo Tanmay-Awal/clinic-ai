@@ -23,12 +23,12 @@ export class DashboardService {
 
   async getSummaryDashboard(dto?: any, user?: any) {
     const totalCalls = await this.callRepository.count();
-    const inboundCalls = await this.callRepository.count({ where: { direction: 'inbound' } });
+    const inboundCalls = await this.callRepository.count({ where: { call_direction: 'inbound' } });
     const outboundCalls = totalCalls - inboundCalls;
     
     // Average duration
-    const calls = await this.callRepository.find({ select: ['duration_seconds'] });
-    const totalDurationSeconds = calls.reduce((sum, c) => sum + (c.duration_seconds || 0), 0);
+    const calls = await this.callRepository.find({ select: ['call_duration_ms'] });
+    const totalDurationSeconds = calls.reduce((sum, c) => sum + (c.call_duration_ms ? c.call_duration_ms / 1000 : 0), 0);
     const avgDurationSeconds = totalCalls > 0 ? Math.floor(totalDurationSeconds / totalCalls) : 0;
 
     const totalReservations = await this.appointmentRepository.count();

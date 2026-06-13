@@ -5,7 +5,6 @@ from datetime import datetime as dt
 from dotenv import load_dotenv
 from loguru import logger
 import aiohttp
-
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
@@ -16,9 +15,7 @@ from pipecat.services.deepgram import DeepgramSTTService
 from pipecat.services.openai import OpenAILLMService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 from pipecat.processors.transcript_processor import TranscriptProcessor
-
 from pipecat_flows import FlowManager, NodeConfig, FlowsFunctionSchema, FlowArgs
-
 from tools import get_doctors, get_available_slots, book_appointment
 
 load_dotenv()

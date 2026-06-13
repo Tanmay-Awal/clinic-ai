@@ -7,6 +7,9 @@ const destCallPath = 'D:\\Clinic Development Sales\\clinic-backend\\src\\call\\c
 const srcDashPath = 'D:\\HuemanAI Development Sales\\sales-suit-backend\\src\\dashboard\\dashboard.service.ts';
 const destDashPath = 'D:\\Clinic Development Sales\\clinic-backend\\src\\dashboard\\dashboard.service.ts';
 
+const srcAiPath = 'D:\\HuemanAI Development Sales\\sales-suit-backend\\src\\ai\\ai.service.ts';
+const destAiPath = 'D:\\Clinic Development Sales\\clinic-backend\\src\\ai\\ai.service.ts';
+
 function replaceKeywords(content) {
     let newContent = content;
     // Replace DB relationships
@@ -56,6 +59,11 @@ try {
     dashContent = replaceKeywords(dashContent);
     fs.writeFileSync(destDashPath, dashContent);
     console.log('Successfully ported dashboard.service.ts');
+
+    let aiContent = fs.readFileSync(srcAiPath, 'utf8');
+    aiContent = replaceKeywords(aiContent);
+    fs.writeFileSync(destAiPath, aiContent);
+    console.log('Successfully ported ai.service.ts');
 } catch (e) {
     console.error(e);
 }

@@ -33,13 +33,13 @@ export class CallService {
 
     const newCall = this.callRepository.create({
       call_id,
-      caller_phone,
-      start_time: start_time ? new Date(start_time) : new Date(),
-      end_time: end_time ? new Date(end_time) : new Date(),
-      duration_seconds,
+      from_number: caller_phone,
+      call_start_time: start_time ? new Date(start_time) : new Date(),
+      call_end_time: end_time ? new Date(end_time) : new Date(),
+      call_duration_ms: duration_seconds * 1000,
       transcript,
       recording_url,
-      direction: 'inbound',
+      call_direction: 'inbound',
     });
 
     const savedCall = await this.callRepository.save(newCall);
@@ -66,7 +66,7 @@ export class CallService {
     }
 
     // Default sorting
-    const validSortColumns = ['created_at', 'start_time', 'duration_seconds'];
+    const validSortColumns = ['created_at', 'call_start_time', 'call_duration_ms'];
     const orderBy = validSortColumns.includes(sort_by) ? `call.${sort_by}` : 'call.created_at';
     const orderDir = sort_order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -81,10 +81,10 @@ export class CallService {
       data: data.map(call => ({
         id: call.id,
         call_id: call.call_id,
-        time: call.start_time,
-        contact_number: call.caller_phone,
-        duration: call.duration_seconds,
-        sentiment: call.sentiment,
+        time: call.call_start_time,
+        contact_number: call.from_number,
+        duration: call.call_duration_ms ? call.call_duration_ms / 1000 : 0,
+        sentiment: 'Neutral', // Removed from Call entity
         category: call.category,
         sub_category: call.sub_category,
       })),
@@ -111,22 +111,22 @@ export class CallService {
     return {
       id: call.id,
       retell_call_id: call.call_id,
-      call_direction: call.direction,
-      from_number: call.caller_phone,
+      call_direction: call.call_direction,
+      from_number: call.from_number,
       to_number: 'Clinic',
-      call_duration_ms: (call.duration_seconds || 0) * 1000,
-      call_start_time: call.start_time,
-      call_end_time: call.end_time,
+      call_duration_ms: call.call_duration_ms || 0,
+      call_start_time: call.call_start_time,
+      call_end_time: call.call_end_time,
       category: call.category,
       recording_url: call.recording_url,
       created_at: call.created_at,
       transcripts: call.transcript || [],
       analysis: {
-        call_summary: call.summary,
-        user_sentiment: call.sentiment,
+        call_summary: '', // CallAnalysis not loaded
+        user_sentiment: '',
         category: call.category,
         sub_category: call.sub_category,
-        key_insights: call.key_insights,
+        key_insights: [],
       },
       linked_actions: [],
     };

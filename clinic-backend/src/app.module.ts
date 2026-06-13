@@ -26,11 +26,26 @@ import { Call } from './entities/call.entity';
 import { Action } from './entities/action.entity';
 import { MonthlyInsight } from './entities/monthly-insight.entity';
 import { ClinicConfig } from './entities/clinic-config.entity';
+import { CallAnalysis } from './entities/call-analysis.entity';
+import { CallTranscript } from './entities/call-transcript.entity';
+import { FeedbackDetails } from './entities/feedback-details.entity';
+import { OrganisationSettings } from './entities/organisation-settings.entity';
+import { UserInteraction } from './entities/user-interaction.entity';
+import { WeeklyInsight } from './entities/weekly-insight.entity';
+import { GeneralIssue } from './entities/general-issue.entity';
+import { GlobalConfig } from './entities/global-config.entity';
+import { InteractionType } from './entities/interaction-type.entity';
+import { Location } from './entities/location.entity';
+import { UserLocation } from './entities/user-location.entity';
+import { UserAgent } from './entities/user-agent.entity';
+import { Agent } from './entities/agent.entity';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { CallModule } from './call/call.module';
 import { AiModule } from './ai/ai.module';
 import { ActionsModule } from './actions/actions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AdminModule } from './admin/admin.module';
+import { UserInteractionModule } from './user-interaction/user-interaction.module';
 
 @Module({
   imports: [
@@ -76,6 +91,19 @@ import { DashboardModule } from './dashboard/dashboard.module';
         Action,
         MonthlyInsight,
         ClinicConfig,
+        CallAnalysis,
+        CallTranscript,
+        FeedbackDetails,
+        OrganisationSettings,
+        UserInteraction,
+        WeeklyInsight,
+        GeneralIssue,
+        GlobalConfig,
+        InteractionType,
+        Location,
+        UserLocation,
+        UserAgent,
+        Agent,
       ],
       synchronize: false,
       logging: process.env.NODE_ENV === 'development',
@@ -95,6 +123,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AiModule,
     ActionsModule,
     DashboardModule,
+    AdminModule,
+    UserInteractionModule,
   ],
   controllers: [],
   providers: [

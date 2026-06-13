@@ -102,7 +102,7 @@ export class UserService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (!user.is_active) {
+    if (user.status !== 'active') {
       throw new UnauthorizedException(
         'Account is Disabled. Please Contact Admin',
       );
