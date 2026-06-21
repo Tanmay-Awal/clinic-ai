@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Call } from '../entities/call.entity';
 import { Action } from '../entities/action.entity';
+import { CallAnalysis } from '../entities/call-analysis.entity';
 
 @Injectable()
 export class AiService {
@@ -17,6 +18,8 @@ export class AiService {
     private readonly callRepository: Repository<Call>,
     @InjectRepository(Action)
     private readonly actionRepository: Repository<Action>,
+    @InjectRepository(CallAnalysis)
+    private readonly callAnalysisRepository: Repository<CallAnalysis>,
   ) {
     const apiKey = this.configService.get<string>('GROQ_API_KEY');
     if (apiKey) {
@@ -78,12 +81,21 @@ export class AiService {
         return false;
       }
 
-      // We should ideally create a CallAnalysis entity here, but for now we map it appropriately if the fields existed.
-      // Since they are removed from Call, we will log them for now to avoid breaking the build, or we could insert them into CallAnalysis.
-      // Assuming CallAnalysis isn't fully wired here, we will just not assign them to call.
-      
+      // We will create a CallAnalysis entity here to store the summary and sentiment.
       // call.analyzed_at = new Date();
       await this.callRepository.save(call);
+
+      const callAnalysis = this.callAnalysisRepository.create({
+        call_id: call.id,
+        call_summary: parsedData.summary || '',
+        user_sentiment: parsedData.sentiment || 'Neutral',
+        call_successful: true,
+        name: null,
+        location: null,
+        contact_number: call.from_number,
+        sentiment_percentage: 50.00, // Or some default/parsed logic if available
+      });
+      await this.callAnalysisRepository.save(callAnalysis);
 
       // Create Action Entities if needed
       if (parsedData.actions_required && Array.isArray(parsedData.actions_required)) {

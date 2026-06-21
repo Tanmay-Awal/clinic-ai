@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { demandHeatmap } from '@/lib/mockData';
+
 import type { Last7DaysCallCount } from '@/types/dashboard';
 
 interface HeatmapCardProps {
@@ -18,7 +18,7 @@ export default function HeatmapCard({ direction, data }: HeatmapCardProps) {
   const heatmapData = useMemo(() => {
     if (!data) {
       // Use mock data if no API data provided
-      return demandHeatmap;
+      return [];
     }
 
     // Transform API data structure to heatmap format

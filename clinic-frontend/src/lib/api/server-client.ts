@@ -107,6 +107,11 @@ export function getServerApiClient(token?: string): AxiosInstance {
    */
   instance.interceptors.response.use(
     (response: AxiosResponse) => {
+      // Unwrap nested data from NestJS TransformInterceptor
+      if (response.data && response.data.statusCode && 'data' in response.data) {
+        response.data = response.data.data;
+      }
+
       // Return successful responses as-is
       return response;
     },

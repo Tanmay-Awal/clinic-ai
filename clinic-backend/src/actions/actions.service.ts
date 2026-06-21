@@ -10,7 +10,7 @@ export class ActionsService {
     private readonly actionRepository: Repository<Action>,
   ) {}
 
-  async getActions(filters?: any): Promise<Action[]> {
+  async getActions(filters?: any): Promise<any> {
     const query = this.actionRepository.createQueryBuilder('action')
       .leftJoinAndSelect('action.call', 'call');
 
@@ -19,7 +19,16 @@ export class ActionsService {
     }
 
     query.orderBy('action.created_at', 'DESC');
-    return query.getMany();
+    const [data, total] = await query.getManyAndCount();
+    return {
+      data,
+      pagination: {
+        page: 1,
+        limit: 100,
+        total,
+        totalPages: 1,
+      }
+    };
   }
 
   async getActionById(id: number): Promise<Action> {

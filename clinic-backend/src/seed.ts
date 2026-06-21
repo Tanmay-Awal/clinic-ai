@@ -7,42 +7,61 @@ async function bootstrap() {
   const appointmentsService = app.get(AppointmentsService);
 
   console.log('Seeding doctors...');
+  
+  // Create Dr. Davis
+  await appointmentsService.createDoctor({
+    name: 'Dr. Davis',
+    specialization: 'Pediatrics',
+    working_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+    working_hours_start: '08:00',
+    working_hours_end: '16:00',
+    is_active: true,
+  });
 
-  const doctors = [
-    {
-      name: 'Dr. Sarah Jenkins',
-      specialization: 'General Practitioner',
-      phone: '+447700900111',
-      email: 'sarah.jenkins@clinic.local',
-      consultation_fee: 50.00,
-    },
-    {
-      name: 'Dr. Michael Chen',
-      specialization: 'Cardiologist',
-      phone: '+447700900222',
-      email: 'michael.chen@clinic.local',
-      consultation_fee: 120.00,
-    },
-    {
-      name: 'Dr. Emily Stone',
-      specialization: 'Dermatologist',
-      phone: '+447700900333',
-      email: 'emily.stone@clinic.local',
-      consultation_fee: 80.00,
-    },
-  ];
+  // Create Dr. Jones
+  const drJones = await appointmentsService.createDoctor({
+    name: 'Dr. Jones',
+    specialization: 'Cardiology',
+    working_days: ['Monday', 'Wednesday', 'Friday'],
+    working_hours_start: '10:00',
+    working_hours_end: '18:00',
+    is_active: true,
+  });
 
-  for (const doc of doctors) {
-    try {
-      await appointmentsService.createDoctor(doc);
-      console.log(`Created doctor: ${doc.name}`);
-    } catch (e) {
-      console.error(`Failed to create doctor ${doc.name}: ${e.message}`);
-    }
-  }
+  console.log('Seeding mock appointments...');
+  
+  // Date calculation: Next Monday for a mock appointment
+  const today = new Date();
+  const nextMonday = new Date();
+  nextMonday.setDate(today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+  const dateStr = nextMonday.toISOString().split('T')[0];
 
-  console.log('Seeding complete.');
+  // Create some mock appointments for Dr. Jones on next Monday
+  await appointmentsService.createAppointment({
+    doctor_id: drJones.id,
+    patient_name: 'Alice Mock',
+    patient_phone: '+19998887777',
+    date: dateStr,
+    time: '10:00:00',
+    status: 'scheduled',
+    duration_minutes: 30
+  });
+
+  await appointmentsService.createAppointment({
+    doctor_id: drJones.id,
+    patient_name: 'Bob Mock',
+    patient_phone: '+19998886666',
+    date: dateStr,
+    time: '11:30:00',
+    status: 'booked',
+    duration_minutes: 30
+  });
+
+  console.log('Database seeded successfully!');
   await app.close();
 }
 
-bootstrap();
+bootstrap().catch(err => {
+  console.error('Seeding failed:', err);
+  process.exit(1);
+});

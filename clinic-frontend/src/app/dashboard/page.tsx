@@ -30,23 +30,7 @@ import FeedbackThemes from '@/components/FeedbackThemes';
 import { useReservationDashboard, useUserInteractions, useHousekeepingDashboard, useFeedbackDashboard, useSummaryDashboard, useAnalyticsInsights } from '@/hooks/use-dashboard';
 import type { UserInteraction, TimingDistribution, TopQuery, TrendingTopicItem } from '@/types';
 import { cn } from '@/lib/utils';
-import {
-  dashboardKPIs,
-  volumeTrend,
-  channelMix,
-  reservationFunnel,
-  cancellationReasons,
-  salesPipeline,
-  leadSources,
-  intentScoreDistribution,
-  complaintTopics,
-  feedbackWords,
-  issueCategories,
-  resolutionTimeDistribution,
-  unresolvedCases,
-  enquiryTopics,
-  repeatQueries
-} from '@/lib/mockData';
+
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -74,6 +58,8 @@ import {
   parseTimestampAsUtc,
   startOfDayInTimezoneUtc,
 } from '@/lib/timezone';
+
+import { channelMix } from '@/lib/mockData';
 
 const grayscaleChannels = channelMix.map((item, i) => ({
   ...item,
@@ -530,12 +516,12 @@ export default function Dashboard() {
       // ── Section 3: KPI Tiles ──
       rows.push(['--- KEY METRICS ---'].map(formatCSVValue));
       rows.push(['Metric', 'Value'].map(formatCSVValue));
-      rows.push(['Total Bookings Captured', String(reservationKPIs.totalBookingsCaptured)].map(formatCSVValue));
-      rows.push(['Reservations %', reservationKPIs.confirmedPercentage + '%'].map(formatCSVValue));
+      rows.push(['Total Appointments Booked', String(reservationKPIs.totalBookingsCaptured)].map(formatCSVValue));
+      rows.push(['Appointments %', reservationKPIs.confirmedPercentage + '%'].map(formatCSVValue));
       const mins = Math.floor(reservationKPIs.avgTime / 60);
       const secs = reservationKPIs.avgTime % 60;
       rows.push(['Avg Time', `${mins}:${secs.toString().padStart(2, '0')}`].map(formatCSVValue));
-      rows.push(['Avg Party Size', String(reservationKPIs.avgPartySize)].map(formatCSVValue));
+      rows.push(['Avg Group Size', String(reservationKPIs.avgPartySize)].map(formatCSVValue));
       rows.push([]);
 
       // ── Section 4: Upsell Performance ──
@@ -567,11 +553,11 @@ export default function Dashboard() {
         const lb = s.largeGroup || s.largePartyBookings || { count: 0, duration: 0 };
         const pb = s.promotions || s.promotionalBookings || { count: 0, duration: 0 };
         rows.push(['--- RESERVATION SEPARATION ---'].map(formatCSVValue));
-        rows.push(['Total Reservation Calls', String(s.totalReservationCalls)].map(formatCSVValue));
+        rows.push(['Total Appointment Calls', String(s.totalReservationCalls)].map(formatCSVValue));
         rows.push(['Secured Bookings Count', String(sb.count)].map(formatCSVValue));
         rows.push(['Secured Bookings Covers', String(sb.duration)].map(formatCSVValue));
-        rows.push(['Large Party Bookings Count', String(lb.count)].map(formatCSVValue));
-        rows.push(['Large Party Bookings Covers', String(lb.duration)].map(formatCSVValue));
+        rows.push(['Multiple Patient Bookings Count', String(lb.count)].map(formatCSVValue));
+        rows.push(['Multiple Patient Bookings Patients', String(lb.duration)].map(formatCSVValue));
         rows.push(['Promotional Bookings Count', String(pb.count)].map(formatCSVValue));
         rows.push(['Promotional Bookings Covers', String(pb.duration)].map(formatCSVValue));
         rows.push([]);
@@ -1069,7 +1055,7 @@ export default function Dashboard() {
 
           {reservationKPIs.totalBookingsCaptured !== undefined && (
             <KPITile
-              label="Total Bookings Captured"
+              label="Total Appointments Booked"
               value={reservationKPIs.totalBookingsCaptured}
               trend={trends?.totalBookingsCaptured}
               breakdown={reservationKPIs.totalBookingsBreakdown}
@@ -1077,13 +1063,13 @@ export default function Dashboard() {
           )}
           {reservationKPIs.totalCovers !== undefined && reservationKPIs.totalCovers > 0 && (
             <KPITile
-              label="Total Covers"
+              label="Total Patients"
               value={reservationKPIs.totalCovers}
             />
           )}
           {reservationKPIs.confirmedPercentage !== undefined && reservationKPIs.confirmedPercentage > 0 && (
             <KPITile
-              label="Reservations %"
+              label="Appointments %"
               value={reservationKPIs.confirmedPercentage}
               format="percent"
               trend={trends?.confirmedPercentage}
@@ -1216,9 +1202,9 @@ export default function Dashboard() {
           <>
             <KPITile label="Total Calls" value={0} />
             <KPITile label="Avg Sentiment" value={0} format="score" />
-            <KPITile label="Total Bookings Captured" value={0} />
-            <KPITile label="Total Covers" value={0} />
-            <KPITile label="Reservations %" value={0} format="percent" />
+            <KPITile label="Total Appointments Booked" value={0} />
+            <KPITile label="Total Patients" value={0} />
+            <KPITile label="Appointments %" value={0} format="percent" />
             <KPITile label="Avg Time" value={0} format="duration" />
           </>
         );
@@ -1816,7 +1802,7 @@ export default function Dashboard() {
                 </div>
                 {reservationKPIs.totalBookingsCaptured !== undefined && (
                   <div className="p-4 rounded-lg border border-border bg-card/50">
-                    <div className="text-xs text-muted-foreground mb-1">Total Bookings Captured</div>
+                    <div className="text-xs text-muted-foreground mb-1">Total Appointments Booked</div>
                     <div className="text-2xl font-semibold text-foreground">
                       {reservationKPIs.totalBookingsCaptured}
                     </div>

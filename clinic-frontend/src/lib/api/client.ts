@@ -89,6 +89,11 @@ const createAxiosInstance = (): AxiosInstance => {
         // The cookie is automatically managed by the browser
       }
 
+      // Unwrap nested data from NestJS TransformInterceptor
+      if (response.data && response.data.statusCode && 'data' in response.data) {
+        response.data = response.data.data;
+      }
+
       // Return successful responses as-is
       return response;
     },

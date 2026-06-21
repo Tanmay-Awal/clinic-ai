@@ -1,4 +1,4 @@
-import { aspectSentiment } from '@/lib/mockData';
+
 
 interface AspectData {
   aspect: string;
@@ -14,7 +14,7 @@ interface AspectBarsBWProps {
 export default function AspectBarsBW({ data }: AspectBarsBWProps) {
   // Use passed data. If empty input given [], use [] (don't fallback to mock).
   // Only fallback to mock if data is explicitly undefined/null AND we want mock.
-  // BUT the dashboard sends "feedbackData?.aspectSentiment" which gives undefined if loading, or [] if empty.
+  // BUT the dashboard sends "feedbackData?.[]" which gives undefined if loading, or [] if empty.
   // We want to treat undefined as [] to show empty state instead of mock.
   const sourceData = data || []; // Change fallback from 'mockData' to []
 

@@ -44,6 +44,7 @@ export class JwtValidationInterceptor implements NestInterceptor {
       '/api/user/login',
       '/api/user/register',
       '/api/health',
+      '/api/calls/ingest',
     ];
 
     // Exact match for root endpoint
@@ -59,6 +60,16 @@ export class JwtValidationInterceptor implements NestInterceptor {
 
     if (isPublicPath || isLiveKitIngest) {
       return next.handle();
+    }
+
+    // Skip validation if a valid Bot API Key is provided
+    const botApiKey = request.headers['x-bot-api-key'];
+    if (botApiKey) {
+      const expectedBotKey = this.configService.get<string>('BOT_API_KEY');
+      if (expectedBotKey && botApiKey === expectedBotKey) {
+        // Allow the bot request to proceed
+        return next.handle();
+      }
     }
 
     // Extract token from Authorization header
