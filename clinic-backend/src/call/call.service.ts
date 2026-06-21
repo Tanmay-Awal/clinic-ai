@@ -85,7 +85,7 @@ export class CallService {
         time: call.call_start_time,
         contact_number: call.from_number,
         duration: call.call_duration_ms ? call.call_duration_ms / 1000 : 0,
-        sentiment: call.callAnalysis?.user_sentiment || 'Unknown',
+        sentiment: call.callAnalysis?.user_sentiment || 'Neutral',
         category: call.category,
         sub_category: call.sub_category,
       })),

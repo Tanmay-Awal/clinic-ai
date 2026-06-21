@@ -74,7 +74,10 @@ export class AppointmentsService {
 
     // Get booked appointments for this doctor on this date
     const appointments = await this.appointmentRepository.find({
-      where: { doctor_id: doctorId, date, status: 'booked' }
+      where: [
+        { doctor_id: doctorId, date, status: 'booked' },
+        { doctor_id: doctorId, date, status: 'scheduled' }
+      ]
     });
 
     const bookedTimes = appointments.map((a) => a.time.substring(0, 5)); // HH:mm format

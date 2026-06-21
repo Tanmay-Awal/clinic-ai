@@ -182,7 +182,7 @@ const createAxiosInstance = (): AxiosInstance => {
         const data = error.response.data as any;
         if (typeof data !== 'object' || !data?.message) {
           error.response.data = {
-            statusCode: status || 500,
+            statusCode: error.response.status || 500,
             message: typeof data === 'string' && data ? data : 'An unexpected error occurred',
             error: data?.error || 'Server Error'
           };
