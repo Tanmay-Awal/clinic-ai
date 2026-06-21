@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Doctor } from '../entities/doctor.entity';
 import { Appointment } from '../entities/appointment.entity';
 
@@ -74,10 +74,11 @@ export class AppointmentsService {
 
     // Get booked appointments for this doctor on this date
     const appointments = await this.appointmentRepository.find({
-      where: [
-        { doctor_id: doctorId, date, status: 'booked' },
-        { doctor_id: doctorId, date, status: 'scheduled' }
-      ]
+      where: { 
+        doctor_id: doctorId, 
+        date, 
+        status: In(['booked', 'scheduled']) 
+      }
     });
 
     const bookedTimes = appointments.map((a) => a.time.substring(0, 5)); // HH:mm format
