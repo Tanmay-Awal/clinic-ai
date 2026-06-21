@@ -12,11 +12,8 @@ interface AspectBarsBWProps {
 }
 
 export default function AspectBarsBW({ data }: AspectBarsBWProps) {
-  // Use passed data. If empty input given [], use [] (don't fallback to mock).
-  // Only fallback to mock if data is explicitly undefined/null AND we want mock.
-  // BUT the dashboard sends "feedbackData?.[]" which gives undefined if loading, or [] if empty.
-  // We want to treat undefined as [] to show empty state instead of mock.
-  const sourceData = data || []; // Change fallback from 'mockData' to []
+  // Default to empty array if no data is provided
+  const sourceData = data ?? [];
 
   const aspectData: AspectData[] = sourceData.map(item => {
     // If score is from backend (0-1 usually)

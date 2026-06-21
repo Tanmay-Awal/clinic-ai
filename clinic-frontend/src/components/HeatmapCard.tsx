@@ -16,9 +16,20 @@ export default function HeatmapCard({ direction, data }: HeatmapCardProps) {
 
   // Transform API data to heatmap format or use mock data
   const heatmapData = useMemo(() => {
-    if (!data) {
-      // Use mock data if no API data provided
-      return [];
+    if (!data || Object.keys(data).length === 0) {
+      // Use a realistic mock for development if no data is provided
+      const dummyHours = ["9", "10", "11", "12", "13", "14", "15", "16", "17"];
+      return dummyHours.map(hourStr => {
+        const hour = parseInt(hourStr, 10);
+        const suffix = hour >= 12 ? 'pm' : 'am';
+        const row: Record<string, number | string> = { hour: `${hour}${suffix}` };
+        days.forEach(day => {
+          // Generate 0-5 calls for weekdays, 0-2 for weekends
+          const isWeekend = day === 'Saturday' || day === 'Sunday';
+          row[day] = Math.floor(Math.random() * (isWeekend ? 3 : 6));
+        });
+        return row;
+      });
     }
 
     // Transform API data structure to heatmap format

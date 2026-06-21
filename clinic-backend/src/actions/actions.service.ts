@@ -10,7 +10,7 @@ export class ActionsService {
     private readonly actionRepository: Repository<Action>,
   ) {}
 
-  async getActions(filters?: any): Promise<any> {
+  async getActions(filters?: any): Promise<{data: Action[]; pagination: {page: number; limit: number; total: number; totalPages: number}}> {
     const query = this.actionRepository.createQueryBuilder('action')
       .leftJoinAndSelect('action.call', 'call');
 

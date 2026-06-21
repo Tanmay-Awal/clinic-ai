@@ -3,7 +3,7 @@ import { ActionsService } from './actions.service';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
 
 @Controller('actions')
-// @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class ActionsController {
   constructor(private readonly actionsService: ActionsService) {}
 
