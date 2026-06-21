@@ -77,6 +77,7 @@ export class AppointmentsService {
       where: { 
         doctor_id: doctorId, 
         date, 
+        // Using TypeORM's 'In' operator to effectively run `status IN ('booked', 'scheduled')`
         status: In(['booked', 'scheduled']) 
       }
     });
