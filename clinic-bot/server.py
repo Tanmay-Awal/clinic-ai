@@ -33,21 +33,22 @@ async def start_call(request: Request):
     form_data = await request.form()
     caller_phone = form_data.get("From", "Unknown")
     
-    # Read the XML and inject the parameter
-    xml_content = open("templates/streams.xml").read()
-    if "<Stream" in xml_content and "</Stream>" in xml_content:
-        # Inject custom parameter inside Stream tag
-        param_tag = f'\n      <Parameter name="caller_phone" value="{caller_phone}" />\n    '
-        xml_content = xml_content.replace("></Stream>", f">{param_tag}</Stream>")
-    elif "<Stream" in xml_content and "/>" in xml_content:
-        # Self closing tag
-        # Replace <Stream ... /> with <Stream ...><Parameter ... /></Stream>
-        parts = xml_content.split("/>", 1)
-        # Find the last <Stream
-        stream_idx = parts[0].rfind("<Stream")
-        if stream_idx != -1:
-            param_tag = f'>\n      <Parameter name="caller_phone" value="{caller_phone}" />\n    </Stream>'
-            xml_content = parts[0][:stream_idx] + parts[0][stream_idx:] + param_tag + parts[1]
+    # Generate dynamic WebSocket URL based on request host
+    host = request.headers.get("host", "localhost:8765")
+    # Determine wss vs ws based on forwarded proto or secure header
+    scheme = request.headers.get("x-forwarded-proto", "https").replace("http", "ws")
+    if "localhost" in host:
+        scheme = "ws"
+        
+    xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="{scheme}://{host}/ws">
+      <Parameter name="caller_phone" value="{caller_phone}" />
+    </Stream>
+  </Connect>
+  <Pause length="40"/>
+</Response>"""
             
     return HTMLResponse(content=xml_content, media_type="application/xml")
 

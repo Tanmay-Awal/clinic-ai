@@ -18,15 +18,19 @@ export class ActionsService {
       query.andWhere('action.status = :status', { status: filters.status });
     }
 
+    const page = filters?.page ? Number(filters.page) : 1;
+    const limit = filters?.limit ? Number(filters.limit) : 100;
+
     query.orderBy('action.created_at', 'DESC');
-    const [data, total] = await query.getManyAndCount();
+    const [data, total] = await query.skip((page - 1) * limit).take(limit).getManyAndCount();
+    
     return {
       data,
       pagination: {
-        page: 1,
-        limit: 100,
+        page,
+        limit,
         total,
-        totalPages: 1,
+        totalPages: Math.ceil(total / limit),
       }
     };
   }

@@ -8,7 +8,8 @@ async def get_doctors():
     """Fetch the list of available doctors in the clinic."""
     logger.info("Tool called: get_doctors")
     headers = {"x-bot-api-key": os.getenv("BOT_API_KEY")}
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=5)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(f"{BACKEND_URL}/appointments/doctors", headers=headers) as response:
             if response.status == 200:
                 res = await response.json()
@@ -20,7 +21,8 @@ async def get_available_slots(doctor_id: int, date: str):
     """Get available time slots for a specific doctor on a specific date (YYYY-MM-DD)."""
     logger.info(f"Tool called: get_available_slots (doctor_id={doctor_id}, date={date})")
     headers = {"x-bot-api-key": os.getenv("BOT_API_KEY")}
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=5)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(f"{BACKEND_URL}/appointments/slots?doctorId={doctor_id}&date={date}", headers=headers) as response:
             if response.status == 200:
                 res = await response.json()
@@ -40,7 +42,8 @@ async def book_appointment(doctor_id: int, date: str, time: str, patient_name: s
         "status": "booked"
     }
     headers = {"x-bot-api-key": os.getenv("BOT_API_KEY")}
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=5)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(f"{BACKEND_URL}/appointments", json=payload, headers=headers) as response:
             if response.status in [200, 201]:
                 res = await response.json()
