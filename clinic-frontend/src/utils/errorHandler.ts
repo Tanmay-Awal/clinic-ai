@@ -123,14 +123,14 @@ export const logError = (error: unknown, context?: string): void => {
       // Only log if we have at least a message
       if (errorInfo.message) {
         // eslint-disable-next-line no-console
-        console.error(`[Error${context ? ` in ${context}` : ''}]:`, errorInfo);
+        console.warn(`[Error${context ? ` in ${context}` : ''}]:`, errorInfo);
       }
       
       // Log original error separately for debugging (development only)
       // Never log stack traces in production
       if (error instanceof Error) {
         // eslint-disable-next-line no-console
-        console.error('Original error:', {
+        console.warn('Original error:', {
           name: error.name,
           message: error.message,
           // Stack traces only in development
@@ -138,7 +138,7 @@ export const logError = (error: unknown, context?: string): void => {
         });
       } else if (error && typeof error === 'object') {
         // eslint-disable-next-line no-console
-        console.error('Original error object:', error);
+        console.warn('Original error object:', error);
       }
     }
     // In production, errors should be sent to error tracking service (e.g., Sentry)

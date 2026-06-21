@@ -30,23 +30,7 @@ import FeedbackThemes from '@/components/FeedbackThemes';
 import { useReservationDashboard, useUserInteractions, useHousekeepingDashboard, useFeedbackDashboard, useSummaryDashboard, useAnalyticsInsights } from '@/hooks/use-dashboard';
 import type { UserInteraction, TimingDistribution, TopQuery, TrendingTopicItem } from '@/types';
 import { cn } from '@/lib/utils';
-import {
-  dashboardKPIs,
-  volumeTrend,
-  channelMix,
-  reservationFunnel,
-  cancellationReasons,
-  salesPipeline,
-  leadSources,
-  intentScoreDistribution,
-  complaintTopics,
-  feedbackWords,
-  issueCategories,
-  resolutionTimeDistribution,
-  unresolvedCases,
-  enquiryTopics,
-  repeatQueries
-} from '@/lib/mockData';
+
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -74,6 +58,8 @@ import {
   parseTimestampAsUtc,
   startOfDayInTimezoneUtc,
 } from '@/lib/timezone';
+
+import { channelMix } from '@/lib/mockData';
 
 const grayscaleChannels = channelMix.map((item, i) => ({
   ...item,
@@ -530,12 +516,12 @@ export default function Dashboard() {
       // ── Section 3: KPI Tiles ──
       rows.push(['--- KEY METRICS ---'].map(formatCSVValue));
       rows.push(['Metric', 'Value'].map(formatCSVValue));
-      rows.push(['Total Bookings Captured', String(reservationKPIs.totalBookingsCaptured)].map(formatCSVValue));
-      rows.push(['Reservations %', reservationKPIs.confirmedPercentage + '%'].map(formatCSVValue));
+      rows.push(['Total Appointments Booked', String(reservationKPIs.totalBookingsCaptured)].map(formatCSVValue));
+      rows.push(['Appointments %', reservationKPIs.confirmedPercentage + '%'].map(formatCSVValue));
       const mins = Math.floor(reservationKPIs.avgTime / 60);
       const secs = reservationKPIs.avgTime % 60;
       rows.push(['Avg Time', `${mins}:${secs.toString().padStart(2, '0')}`].map(formatCSVValue));
-      rows.push(['Avg Party Size', String(reservationKPIs.avgPartySize)].map(formatCSVValue));
+      rows.push(['Avg Group Size', String(reservationKPIs.avgPartySize)].map(formatCSVValue));
       rows.push([]);
 
       // ── Section 4: Upsell Performance ──
@@ -567,11 +553,11 @@ export default function Dashboard() {
         const lb = s.largeGroup || s.largePartyBookings || { count: 0, duration: 0 };
         const pb = s.promotions || s.promotionalBookings || { count: 0, duration: 0 };
         rows.push(['--- RESERVATION SEPARATION ---'].map(formatCSVValue));
-        rows.push(['Total Reservation Calls', String(s.totalReservationCalls)].map(formatCSVValue));
+        rows.push(['Total Appointment Calls', String(s.totalReservationCalls)].map(formatCSVValue));
         rows.push(['Secured Bookings Count', String(sb.count)].map(formatCSVValue));
         rows.push(['Secured Bookings Covers', String(sb.duration)].map(formatCSVValue));
-        rows.push(['Large Party Bookings Count', String(lb.count)].map(formatCSVValue));
-        rows.push(['Large Party Bookings Covers', String(lb.duration)].map(formatCSVValue));
+        rows.push(['Multiple Patient Bookings Count', String(lb.count)].map(formatCSVValue));
+        rows.push(['Multiple Patient Bookings Patients', String(lb.duration)].map(formatCSVValue));
         rows.push(['Promotional Bookings Count', String(pb.count)].map(formatCSVValue));
         rows.push(['Promotional Bookings Covers', String(pb.duration)].map(formatCSVValue));
         rows.push([]);
@@ -1069,7 +1055,7 @@ export default function Dashboard() {
 
           {reservationKPIs.totalBookingsCaptured !== undefined && (
             <KPITile
-              label="Total Bookings Captured"
+              label="Total Appointments Booked"
               value={reservationKPIs.totalBookingsCaptured}
               trend={trends?.totalBookingsCaptured}
               breakdown={reservationKPIs.totalBookingsBreakdown}
@@ -1077,13 +1063,13 @@ export default function Dashboard() {
           )}
           {reservationKPIs.totalCovers !== undefined && reservationKPIs.totalCovers > 0 && (
             <KPITile
-              label="Total Covers"
+              label="Total Patients"
               value={reservationKPIs.totalCovers}
             />
           )}
           {reservationKPIs.confirmedPercentage !== undefined && reservationKPIs.confirmedPercentage > 0 && (
             <KPITile
-              label="Reservations %"
+              label="Appointments %"
               value={reservationKPIs.confirmedPercentage}
               format="percent"
               trend={trends?.confirmedPercentage}
@@ -1216,9 +1202,9 @@ export default function Dashboard() {
           <>
             <KPITile label="Total Calls" value={0} />
             <KPITile label="Avg Sentiment" value={0} format="score" />
-            <KPITile label="Total Bookings Captured" value={0} />
-            <KPITile label="Total Covers" value={0} />
-            <KPITile label="Reservations %" value={0} format="percent" />
+            <KPITile label="Total Appointments Booked" value={0} />
+            <KPITile label="Total Patients" value={0} />
+            <KPITile label="Appointments %" value={0} format="percent" />
             <KPITile label="Avg Time" value={0} format="duration" />
           </>
         );
@@ -1816,7 +1802,7 @@ export default function Dashboard() {
                 </div>
                 {reservationKPIs.totalBookingsCaptured !== undefined && (
                   <div className="p-4 rounded-lg border border-border bg-card/50">
-                    <div className="text-xs text-muted-foreground mb-1">Total Bookings Captured</div>
+                    <div className="text-xs text-muted-foreground mb-1">Total Appointments Booked</div>
                     <div className="text-2xl font-semibold text-foreground">
                       {reservationKPIs.totalBookingsCaptured}
                     </div>
@@ -2166,10 +2152,10 @@ export default function Dashboard() {
                             <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-400/5 rounded-full -translate-y-1/2 translate-x-1/2" />
                             <div className="flex items-center gap-2 mb-2">
                               <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                              <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400/80">Bookings</span>
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400/80">Appointments</span>
                             </div>
                             <span className="text-3xl font-bold text-foreground tabular-nums">{ah.bookingsDoneAfterHours}</span>
-                            <p className="text-[11px] text-muted-foreground mt-1">confirmed bookings</p>
+                            <p className="text-[11px] text-muted-foreground mt-1">confirmed appointments</p>
                           </div>
 
                           {/* Covers Card */}
@@ -2243,7 +2229,7 @@ export default function Dashboard() {
                         <span className="text-[46px] leading-none font-bold tracking-tighter text-foreground transition-transform duration-300 group-hover:scale-[1.03]">
                           {total}
                         </span>
-                        <span className="text-sm text-muted-foreground">bookings</span>
+                        <span className="text-sm text-muted-foreground">appointments</span>
                       </div>
                       <span className="text-lg font-semibold text-muted-foreground">•</span>
                       <div className="flex items-baseline gap-2">
@@ -2324,10 +2310,10 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between mb-6 relative">
                     <div>
                       <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                        Bookings Breakdown
+                        Appointments Breakdown
                       </h3>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {bookingsToggle === 'date_booked' ? 'When bookings were created' : 'When guests are visiting'}
+                        {bookingsToggle === 'date_booked' ? 'When appointments were created' : 'When patients are visiting'}
                       </p>
                     </div>
                     <div className="flex items-center rounded-xl border border-border/50 bg-background/50 p-1 backdrop-blur-sm shadow-sm">
@@ -2468,7 +2454,7 @@ export default function Dashboard() {
                       <div className="relative">
                         <div className="flex items-end gap-3 mb-6">
                           <span className="text-[42px] font-bold tracking-tighter text-foreground tabular-nums leading-none">{totalCount}</span>
-                          <span className="text-sm text-muted-foreground mb-1.5 font-medium">total bookings</span>
+                          <span className="text-sm text-muted-foreground mb-1.5 font-medium">total appointments</span>
                         </div>
 
                         {/* Stacked bar summary */}
@@ -2491,7 +2477,7 @@ export default function Dashboard() {
                         {/* Chart Summary */}
                         <div className="mb-6 flex items-center justify-between text-[13px]">
                           <div className="text-muted-foreground/80 font-medium tracking-wide">
-                            Max Value: <span className="font-extrabold text-foreground tabular-nums">{maxCount}</span> bookings
+                            Max Value: <span className="font-extrabold text-foreground tabular-nums">{maxCount}</span> appointments
                             {(() => {
                               const peakItem = filledData.find(d => d.count === maxCount);
                               return peakItem ? (
@@ -2528,7 +2514,7 @@ export default function Dashboard() {
                                         <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl px-3 py-2.5 shadow-2xl shadow-black/50 whitespace-nowrap min-w-[124px]">
                                           <div className="flex items-center gap-2.5 mb-1.5">
                                             <div className={`w-2.5 h-2.5 rounded-full bg-gradient-to-r ${theme.bar} shadow-sm shadow-black/20`} />
-                                            <span className="text-[13px] font-bold text-foreground tabular-nums">{item.count} Bookings</span>
+                                            <span className="text-[13px] font-bold text-foreground tabular-nums">{item.count} Appointments</span>
                                           </div>
                                           <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider flex flex-col gap-0.5">
                                             <span>{pct}% of total period</span>
@@ -2741,7 +2727,7 @@ export default function Dashboard() {
             <div className="col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <FunnelAnalyticsChart
                 title="Conversion Funnel"
-                description="Guest journey from initial call to confirmed booking"
+                description="Patient journey from initial call to confirmed appointment"
                 data={reservationKPIs.conversionFunnel.map((f: any) => ({
                   stage: f.stage,
                   count: f.count,
@@ -2780,7 +2766,7 @@ export default function Dashboard() {
                     Reservation Timing Distribution
                   </h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Booking patterns by hour of day
+                    Appointment patterns by hour of day
                   </p>
                 </div>
 
@@ -2944,7 +2930,7 @@ export default function Dashboard() {
           <>
             <div className="col-span-12 lg:col-span-8">
               <FunnelChartBW
-                stages={salesPipeline}
+                stages={[]}
                 title="Sales Pipeline"
                 description="Lead progression through stages"
               />
@@ -2961,14 +2947,14 @@ export default function Dashboard() {
             </div>
             <div className="col-span-12 lg:col-span-4">
               <DonutChartBW
-                data={leadSources}
+                data={[]}
                 title="Lead Source Mix"
                 description="Where leads are coming from"
               />
             </div>
             <div className="col-span-12 lg:col-span-4">
               <HistogramChartBW
-                data={intentScoreDistribution}
+                data={[]}
                 title="Intent Score Distribution"
                 description="AI-scored lead quality"
               />
@@ -3042,7 +3028,7 @@ export default function Dashboard() {
             </div>
             <div className="col-span-12 lg:col-span-6">
               <DonutChartBW
-                data={issueCategories}
+                data={[]}
                 title="Issue Category Distribution"
                 description="Breakdown by issue type"
               />
@@ -3052,7 +3038,7 @@ export default function Dashboard() {
             </div>
             <div className="col-span-12 lg:col-span-6">
               <HistogramChartBW
-                data={resolutionTimeDistribution}
+                data={[]}
                 title="Resolution Time Distribution"
                 description="Time to resolve support cases"
               />
@@ -3061,7 +3047,7 @@ export default function Dashboard() {
               <MiniTableBW
                 title="Unresolved Cases (Last 24h)"
                 columns={['Issue', 'Age', 'Severity']}
-                data={unresolvedCases}
+                data={[]}
               />
             </div>
             <div className="col-span-12 lg:col-span-6">
@@ -3075,7 +3061,7 @@ export default function Dashboard() {
           <>
             <div className="col-span-12 lg:col-span-6">
               <DonutChartBW
-                data={enquiryTopics}
+                data={[]}
                 title="Topic Distribution"
                 description="What guests are asking about"
               />
@@ -3102,12 +3088,7 @@ export default function Dashboard() {
               <MiniTableBW
                 title="Repeat Query Analysis"
                 columns={['Topic', 'Calls', 'Info %', 'Sentiment']}
-                data={repeatQueries.map(q => ({
-                  topic: q.topic,
-                  calls: q.calls,
-                  'info_%': `${q.info_provided}%`,
-                  sentiment: q.sentiment.toFixed(2)
-                }))}
+                data={[]}
               />
             </div>
             <div className="col-span-12 lg:col-span-6">
@@ -3163,7 +3144,7 @@ export default function Dashboard() {
             <div className="col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               <FunnelAnalyticsChart
                 title="General Conversion Funnel"
-                description="Overall call-to-booking journey across all categories"
+                description="Overall call-to-appointment journey across all categories"
                 data={(summaryData?.conversionFunnel || []).map(f => ({
                   stage: f.stage,
                   count: f.count,

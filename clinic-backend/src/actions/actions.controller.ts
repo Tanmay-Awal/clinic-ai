@@ -1,24 +1,20 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Body,
-  Param,
-  Query,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, Request, UseGuards } from '@nestjs/common';
 import { ActionsService } from './actions.service';
 import { JwtAuthGuard } from '../user/guards/jwt-auth.guard';
 
 @Controller('actions')
-// @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 export class ActionsController {
   constructor(private readonly actionsService: ActionsService) {}
 
   @Get()
   async getActions(@Query() query: any) {
     return this.actionsService.getActions(query);
+  }
+
+  @Post('list')
+  async postActionsList(@Body() body: any) {
+    return this.actionsService.getActions(body);
   }
 
   @Get(':id')

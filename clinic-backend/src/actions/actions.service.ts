@@ -10,7 +10,7 @@ export class ActionsService {
     private readonly actionRepository: Repository<Action>,
   ) {}
 
-  async getActions(filters?: any): Promise<Action[]> {
+  async getActions(filters?: any): Promise<{data: Action[]; pagination: {page: number; limit: number; total: number; totalPages: number}}> {
     const query = this.actionRepository.createQueryBuilder('action')
       .leftJoinAndSelect('action.call', 'call');
 
@@ -18,8 +18,21 @@ export class ActionsService {
       query.andWhere('action.status = :status', { status: filters.status });
     }
 
+    const page = filters?.page ? Number(filters.page) : 1;
+    const limit = filters?.limit ? Number(filters.limit) : 100;
+
     query.orderBy('action.created_at', 'DESC');
-    return query.getMany();
+    const [data, total] = await query.skip((page - 1) * limit).take(limit).getManyAndCount();
+    
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      }
+    };
   }
 
   async getActionById(id: number): Promise<Action> {

@@ -1,4 +1,4 @@
-import { siteLeaderboard } from '@/lib/mockData';
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface LeaderboardTableBWProps {
@@ -26,7 +26,7 @@ export default function LeaderboardTableBW({ category, data }: LeaderboardTableB
 
   const columns = getColumns();
   // Use passed data or fallback to mock data (only for specific categories if needed, otherwise empty)
-  const displayData = data && data.length > 0 ? data : (category === 'all' ? [] : siteLeaderboard);
+  const displayData = data && data.length > 0 ? data : (category === 'all' ? [] : []);
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6">

@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import * as crypto from 'crypto';
 
@@ -14,6 +15,8 @@ import * as crypto from 'crypto';
  */
 @Injectable()
 export class CsrfGuard implements CanActivate {
+  constructor(private configService: ConfigService) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const ctx = context.switchToHttp();
     const request = ctx.getRequest<Request>();
@@ -23,8 +26,8 @@ export class CsrfGuard implements CanActivate {
       return true;
     }
 
-    // Skip CSRF for public endpoints (login, register)
-    const publicPaths = ['/api/user/login', '/api/user/register'];
+    // Skip CSRF for public endpoints (login, register) and bot ingestion
+    const publicPaths = ['/api/user/login', '/api/user/register', '/api/calls/ingest'];
     if (publicPaths.some((path) => request.path.startsWith(path))) {
       return true;
     }
@@ -34,6 +37,15 @@ export class CsrfGuard implements CanActivate {
     const authHeader = request.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       return true;
+    }
+
+    // Skip CSRF if a valid Bot API Key is provided
+    const botApiKey = request.headers['x-bot-api-key'];
+    if (botApiKey) {
+      const expectedBotKey = this.configService.get<string>('BOT_API_KEY');
+      if (expectedBotKey && botApiKey === expectedBotKey) {
+        return true;
+      }
     }
 
     // Get CSRF token from header or body

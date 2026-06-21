@@ -107,12 +107,29 @@ export function getServerApiClient(token?: string): AxiosInstance {
    */
   instance.interceptors.response.use(
     (response: AxiosResponse) => {
+      // Unwrap nested data from NestJS TransformInterceptor
+      if (response.data && response.data.statusCode && 'data' in response.data) {
+        response.data = response.data.data;
+      }
+
       // Return successful responses as-is
       return response;
     },
     (error: AxiosError) => {
       // Log error for debugging
       logError(error, 'Server Response Interceptor');
+
+      // Normalize error response structure before propagating
+      if (error.response) {
+        const data = error.response.data as any;
+        if (typeof data !== 'object' || !data?.message) {
+          error.response.data = {
+            statusCode: error.response.status || 500,
+            message: typeof data === 'string' && data ? data : 'An unexpected error occurred',
+            error: data?.error || 'Server Error'
+          };
+        }
+      }
 
       // Return rejected promise with error
       return Promise.reject(error);

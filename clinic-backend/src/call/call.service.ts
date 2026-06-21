@@ -55,7 +55,8 @@ export class CallService {
 
   async getAllCalls(dto: any = {}) {
     const { page = 1, limit = 10, search, category, sort_by = 'created_at', sort_order = 'DESC' } = dto;
-    const query = this.callRepository.createQueryBuilder('call');
+    const query = this.callRepository.createQueryBuilder('call')
+      .leftJoinAndSelect('call.callAnalysis', 'callAnalysis');
 
     if (category) {
       query.andWhere('call.category = :category', { category });
@@ -84,7 +85,7 @@ export class CallService {
         time: call.call_start_time,
         contact_number: call.from_number,
         duration: call.call_duration_ms ? call.call_duration_ms / 1000 : 0,
-        sentiment: 'Neutral', // Removed from Call entity
+        sentiment: call.callAnalysis?.user_sentiment || 'Neutral',
         category: call.category,
         sub_category: call.sub_category,
       })),
@@ -102,6 +103,7 @@ export class CallService {
   async getCallById(id: number) {
     const call = await this.callRepository.findOne({
       where: { id },
+      relations: ['callAnalysis'],
     });
 
     if (!call) {
@@ -122,11 +124,11 @@ export class CallService {
       created_at: call.created_at,
       transcripts: call.transcript || [],
       analysis: {
-        call_summary: '', // CallAnalysis not loaded
-        user_sentiment: '',
+        call_summary: call.callAnalysis?.call_summary || '',
+        user_sentiment: call.callAnalysis?.user_sentiment || '',
         category: call.category,
         sub_category: call.sub_category,
-        key_insights: [],
+        key_insights: [], // Still missing from entity, leave empty array for now
       },
       linked_actions: [],
     };

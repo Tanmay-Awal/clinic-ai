@@ -89,6 +89,11 @@ const createAxiosInstance = (): AxiosInstance => {
         // The cookie is automatically managed by the browser
       }
 
+      // Unwrap nested data from NestJS TransformInterceptor
+      if (response.data && response.data.statusCode && 'data' in response.data) {
+        response.data = response.data.data;
+      }
+
       // Return successful responses as-is
       return response;
     },
@@ -172,7 +177,19 @@ const createAxiosInstance = (): AxiosInstance => {
         logError(error, 'Response Interceptor');
       }
 
-      // Return rejected promise with error
+      // Normalize error response structure before propagating to UI
+      if (error.response) {
+        const data = error.response.data as any;
+        if (typeof data !== 'object' || !data?.message) {
+          error.response.data = {
+            statusCode: error.response.status || 500,
+            message: typeof data === 'string' && data ? data : 'An unexpected error occurred',
+            error: data?.error || 'Server Error'
+          };
+        }
+      }
+
+      // Return rejected promise with normalized error
       return Promise.reject(error);
     }
   );
