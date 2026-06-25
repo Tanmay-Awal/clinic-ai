@@ -24,6 +24,9 @@ import { FunnelAnalyticsChart } from '@/components/FunnelAnalyticsChart';
 import TrendingTopics from '@/components/TrendingTopics';
 import TopQueries from '@/components/TopQueries';
 import TopSpecialRequests from '@/components/TopSpecialRequests';
+import TopDoctors from '@/components/TopDoctors';
+import TopDiseases from '@/components/TopDiseases';
+import { ActionTable } from '@/components/Actions/ActionTable';
 import FeedbackTypeChart from '@/components/FeedbackTypeChart';
 import RebookingFunnel from '@/components/RebookingFunnel';
 import FeedbackThemes from '@/components/FeedbackThemes';
@@ -941,6 +944,8 @@ export default function Dashboard() {
       afterHoursStats: reservationData?.afterHoursStats || null,
       reservationSeparation: reservationData?.reservationSeparation || null,
       upsellStats: reservationData?.upsellStats || null,
+      topDoctors: reservationData?.topDoctors || [],
+      topDiseases: reservationData?.topDiseases || [],
     };
 
     return transformed;
@@ -2203,9 +2208,9 @@ export default function Dashboard() {
               const pctPromo = total > 0 ? ((pb.count / total) * 100) : 0;
 
               const items = [
-                { label: 'Secured Bookings', count: sb.count, duration: sb.duration, pct: pctSecured, color: 'bg-emerald-400', trackColor: 'bg-emerald-400/15', outcome: 'Booking Secured', callIds: sb.callIds, agentBreakdown: sb.agentBreakdown },
-                { label: 'Large Party Bookings', count: lb.count, duration: lb.duration, pct: pctLarge, color: 'bg-sky-400', trackColor: 'bg-sky-400/15', outcome: 'Large Party Bookings', callIds: lb.callIds, agentBreakdown: lb.agentBreakdown },
-                { label: 'Promotional / Offer', count: pb.count, duration: pb.duration, pct: pctPromo, color: 'bg-amber-400', trackColor: 'bg-amber-400/15', outcome: 'Promotional / Offer', callIds: pb.callIds, agentBreakdown: pb.agentBreakdown },
+                { label: 'General Consultations', count: sb.count, duration: sb.duration, pct: pctSecured, color: 'bg-emerald-400', trackColor: 'bg-emerald-400/15', outcome: 'General Consultations', callIds: sb.callIds, agentBreakdown: sb.agentBreakdown },
+                { label: 'Specialist Visits', count: lb.count, duration: lb.duration, pct: pctLarge, color: 'bg-sky-400', trackColor: 'bg-sky-400/15', outcome: 'Specialist Visits', callIds: lb.callIds, agentBreakdown: lb.agentBreakdown },
+                { label: 'Follow-up Appointments', count: pb.count, duration: pb.duration, pct: pctPromo, color: 'bg-amber-400', trackColor: 'bg-amber-400/15', outcome: 'Follow-up Appointments', callIds: pb.callIds, agentBreakdown: pb.agentBreakdown },
               ];
 
               return (
@@ -2215,15 +2220,15 @@ export default function Dashboard() {
                     <div className="flex items-start justify-between mb-5">
                       <div>
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                          Reservation Breakdown
+                          Appointment Breakdown
                         </h3>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          Distribution of reservation types with duration
+                          Distribution of appointment types with duration
                         </p>
                       </div>
                     </div>
 
-                    {/* Big Total - Bookings & Covers */}
+                    {/* Big Total - Bookings & Duration */}
                     <div className="flex items-end gap-3 mb-5">
                       <div className="flex items-baseline gap-2">
                         <span className="text-[46px] leading-none font-bold tracking-tighter text-foreground transition-transform duration-300 group-hover:scale-[1.03]">
@@ -2234,7 +2239,7 @@ export default function Dashboard() {
                       <span className="text-lg font-semibold text-muted-foreground">•</span>
                       <div className="flex items-baseline gap-2">
                         <span className="text-[32px] leading-none font-bold tracking-tighter text-sky-400">
-                          {totalCovers}
+                          {totalCovers}m
                         </span>
                         <span className="text-xs text-muted-foreground mb-0.5">duration</span>
                       </div>
@@ -2269,7 +2274,7 @@ export default function Dashboard() {
                               <span className="text-xs font-semibold text-muted-foreground tabular-nums">{item.pct.toFixed(1)}%</span>
                               <span className="text-sm font-bold text-foreground tabular-nums">{item.count}</span>
                               <span className="text-xs text-muted-foreground">|</span>
-                              <span className="text-sm font-bold text-sky-400 tabular-nums">{item.duration}</span>
+                              <span className="text-sm font-bold text-sky-400 tabular-nums">{item.duration}m</span>
                             </div>
                           </div>
 
@@ -2628,98 +2633,18 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Top Row: Volume Trend & Upsell Performance */}
-            <div className="col-span-12 grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
-              {/* Volume Trend Graph */}
+            {/* Top Row: Volume Trend Graph */}
+            <div className="col-span-12 mb-6">
               {reservationKPIs.volumeTrend && (
-                <div className="col-span-1 lg:col-span-8">
-                  <VolumeTrendChart
-                    data={reservationKPIs.volumeTrend}
-                    comparisonData={(reservationKPIs.volumeComparison?.previousTrend || []).map((d: any) => ({
-                      label: d?.date || d?.label || '',
-                      value: d?.volume || d?.value || 0
-                    }))}
-                    title={dateRange === 'today' ? "Calls Per Hour" : "Calls Per Day"}
-                    description={`Calls trend for ${dateRangeLabels[dateRange]} (Current Period)`}
-                  />
-                </div>
-              )}
-
-              {/* Upsell Performance Card */}
-              {reservationKPIs.upsellStats && (
-                <div className="col-span-1 lg:col-span-4">
-                  <button
-                    type="button"
-                    onClick={() => handleReservationOutcomeClick('Successful Upsells', reservationKPIs.upsellStats?.callIds)}
-                    className="group rounded-2xl border border-border bg-card p-5 h-full flex flex-col relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-border/80 card-glow card-shine text-left w-full"
-                  >
-                    <div className="w-full flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                          Upsell Performance
-                        </h3>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          Extra revenue generated from calls
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Revenue with gradient accent */}
-                    <div className="flex flex-col items-center justify-center flex-grow mb-4 relative">
-                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.06]">
-                        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-emerald-400 to-sky-400 blur-2xl" />
-                      </div>
-                      <span className="text-[42px] leading-none font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400 transition-transform duration-300 group-hover:scale-[1.03]">
-                        £{reservationKPIs.upsellStats.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-
-                    <div className="w-full space-y-2">
-                      {/* Total Upsells */}
-                      <div className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-                          <span className="text-[13px] font-medium text-foreground">Total Successful Upsells</span>
-                        </div>
-                        <span className="text-lg font-bold text-emerald-400 tabular-nums">{reservationKPIs.upsellStats.totalUpsells}</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        {/* Prosecco */}
-                        {(reservationKPIs.upsellStats.breakdown?.prosecco ?? 0) > 0 && (
-                          <div className="relative p-3 rounded-xl border border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/40 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                              <span className="text-[11px] text-amber-400/80 font-semibold uppercase tracking-wider">Prosecco</span>
-                            </div>
-                            <span className="text-xl font-bold text-foreground tabular-nums">{reservationKPIs.upsellStats.breakdown?.prosecco}</span>
-                          </div>
-                        )}
-                        {/* Wine */}
-                        {(reservationKPIs.upsellStats.breakdown?.wine ?? 0) > 0 && (
-                          <div className="relative p-3 rounded-xl border border-rose-500/25 bg-rose-500/5 hover:bg-rose-500/10 hover:border-rose-500/40 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                              <span className="text-[11px] text-rose-400/80 font-semibold uppercase tracking-wider">Wine</span>
-                            </div>
-                            <span className="text-xl font-bold text-foreground tabular-nums">{reservationKPIs.upsellStats.breakdown?.wine}</span>
-                          </div>
-                        )}
-                        {/* Other */}
-                        {(reservationKPIs.upsellStats.breakdown?.other ?? 0) > 0 && (
-                          <div className="relative p-3 rounded-xl border border-border/25 bg-muted/5 hover:bg-muted/10 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
-                              <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Other</span>
-                            </div>
-                            <span className="text-xl font-bold text-foreground tabular-nums">{reservationKPIs.upsellStats.breakdown?.other}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                  </button>
-                </div>
+                <VolumeTrendChart
+                  data={reservationKPIs.volumeTrend}
+                  comparisonData={(reservationKPIs.volumeComparison?.previousTrend || []).map((d: any) => ({
+                    label: d?.date || d?.label || '',
+                    value: d?.volume || d?.value || 0
+                  }))}
+                  title={dateRange === 'today' ? "Calls Per Hour" : "Calls Per Day"}
+                  description={`Calls trend for ${dateRangeLabels[dateRange]} (Current Period)`}
+                />
               )}
             </div>
 
@@ -2742,186 +2667,17 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* Top Queries and Top Special Requests Row - Component based with extracted components */}
+            {/* Top Doctors and Top Diseases */}
             <div className="col-span-12 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <TopQueries
-                queries={!isAnalyticsLoading && analyticsData?.topQueries?.length
-                  ? analyticsData.topQueries
-                  : (reservationKPIs.topQueriesToday || []).map((q) => ({ code: 'legacy', label: q.query, count: q.count, sampleVerbatim: null }))}
+              <TopDoctors
+                doctors={reservationKPIs.topDoctors || []}
                 dateRangeLabel={dateRangeLabels[dateRange] || 'Today'}
               />
-              <TopSpecialRequests
-                requests={!isAnalyticsLoading && analyticsData?.topSpecialRequests?.length
-                  ? analyticsData.topSpecialRequests
-                  : (reservationKPIs.topSpecialRequests || []).map((r) => ({ code: 'legacy', label: r.request, count: r.count, category: 'Other', sampleDetail: null }))}
+              <TopDiseases
+                diseases={reservationKPIs.topDiseases || []}
                 dateRangeLabel={dateRangeLabels[dateRange] || 'Today'}
               />
             </div>
-
-            {/* Timing Distribution - Premium Redesign */}
-            <div className="col-span-12 mb-6">
-              <div className="rounded-2xl border border-border bg-card p-6 card-glow card-shine">
-                <div className="mb-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                    Reservation Timing Distribution
-                  </h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Appointment patterns by hour of day
-                  </p>
-                </div>
-
-                {/* Daily Breakdown Cards */}
-                {dateRange === 'today' ? (
-                  <div className="mb-6 p-5 rounded-xl border border-border bg-card/30">
-                    <h4 className="text-sm font-semibold text-foreground mb-3">Calls For Today</h4>
-                    <div className="flex items-center justify-center py-6">
-                      <div className="text-center">
-                        <div className="text-5xl font-bold text-foreground mb-1 tabular-nums">
-                          {reservationKPIs.totalCalls || 0}
-                        </div>
-                        <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Calls Received</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  reservationKPIs.heatmapData && typeof reservationKPIs.heatmapData === 'object' && Object.keys(reservationKPIs.heatmapData).length > 0 && (
-                    <div className="mb-6 p-5 rounded-xl border border-border/60 bg-gradient-to-b from-white/[0.02] to-transparent">
-                      <h4 className="text-sm font-semibold text-foreground mb-4">Calls for {dateRangeLabels[dateRange] || 'Selected Range'}</h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                        {(() => {
-                          const dayOrder: { [key: string]: number } = {
-                            'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
-                            'Friday': 4, 'Saturday': 5, 'Sunday': 6
-                          };
-                          const dailyTotals: { day: string; total: number; hours: number }[] = [];
-                          Object.entries(reservationKPIs.heatmapData).forEach(([day, dayData]) => {
-                            if (dayData && typeof dayData === 'object') {
-                              let dayTotal = 0;
-                              let activeHours = 0;
-                              Object.values(dayData).forEach((count) => {
-                                if (typeof count === 'number' && count > 0) {
-                                  dayTotal += count;
-                                  activeHours++;
-                                }
-                              });
-                              dailyTotals.push({ day, total: dayTotal, hours: activeHours });
-                            }
-                          });
-                          dailyTotals.sort((a, b) => (dayOrder[a.day] ?? 99) - (dayOrder[b.day] ?? 99));
-                          const dayThemes: { [key: string]: { label: string; border: string; shadow: string } } = {
-                            'Monday': { label: 'text-emerald-400', border: 'border-emerald-500/40', shadow: 'shadow-emerald-500/10' },
-                            'Tuesday': { label: 'text-sky-400', border: 'border-sky-500/40', shadow: 'shadow-sky-500/10' },
-                            'Wednesday': { label: 'text-violet-400', border: 'border-violet-500/40', shadow: 'shadow-violet-500/10' },
-                            'Thursday': { label: 'text-amber-400', border: 'border-amber-500/40', shadow: 'shadow-amber-500/10' },
-                            'Friday': { label: 'text-rose-400', border: 'border-rose-500/40', shadow: 'shadow-rose-500/10' },
-                            'Saturday': { label: 'text-fuchsia-400', border: 'border-fuchsia-500/40', shadow: 'shadow-fuchsia-500/10' },
-                            'Sunday': { label: 'text-cyan-400', border: 'border-cyan-500/40', shadow: 'shadow-cyan-500/10' },
-                          };
-                          return dailyTotals.map(({ day, total, hours }, idx) => {
-                            const dt = dayThemes[day] || { label: 'text-muted-foreground', border: 'border-border', shadow: '' };
-                            return (
-                              <motion.div
-                                key={day}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                                className={`relative rounded-xl border ${dt.border} bg-gradient-to-b from-white/[0.03] to-transparent p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${dt.shadow} cursor-default`}
-                              >
-                                <div className={`text-xs font-bold uppercase tracking-wider mb-2 ${dt.label}`}>
-                                  {day}
-                                </div>
-                                <div className="text-3xl font-bold text-foreground tabular-nums leading-none mb-1.5">
-                                  {total}
-                                </div>
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                                  {hours} hours active
-                                </div>
-                              </motion.div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {/* Histogram Chart */}
-                <div>
-                  {reservationKPIs.timingDistribution && Array.isArray(reservationKPIs.timingDistribution) && reservationKPIs.timingDistribution.length > 0 ? (
-                    <div className="w-full">
-                      {(() => {
-                        const values = reservationKPIs.timingDistribution.map((d: any) => d.value);
-                        const maxValue = Math.max(...values, 1);
-                        const peakHour = reservationKPIs.timingDistribution.find((d: any) => d.value === maxValue);
-                        return (
-                          <>
-                            <div className="mb-4">
-                              <h3 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                                Reservation Time Per Slot
-                              </h3>
-                              <p className="mt-0.5 text-xs text-muted-foreground">
-                                Max Value: <span className="font-bold text-foreground">{maxValue} reservations</span>
-                                {peakHour && <span> at {peakHour.label}</span>}
-                              </p>
-                            </div>
-                            <div className="relative pt-8 pb-2">
-                              <div className="flex items-end gap-[3px] h-56">
-                                {reservationKPIs.timingDistribution.map((item: any, index: number) => {
-                                  const heightPercent = maxValue > 0 && item.value > 0 ? (item.value / maxValue) * 100 : 0;
-                                  const finalHeight = item.value > 0 ? Math.max(heightPercent, 3) : 0;
-                                  return (
-                                    <div
-                                      key={`timing-${index}-${item.label}`}
-                                      className="flex flex-col items-center justify-end flex-1 min-w-0 h-full group relative"
-                                    >
-                                      <div className="relative w-full h-full flex items-end justify-center">
-                                        {item.value > 0 && (
-                                          <motion.div
-                                            initial={{ height: 0 }}
-                                            animate={{ height: `${finalHeight}%` }}
-                                            transition={{ duration: 0.5, delay: index * 0.02, ease: 'easeOut' }}
-                                            className="w-full rounded-t-sm cursor-pointer transition-opacity hover:opacity-80 bg-cyan-400"
-                                            style={{ minHeight: '3px' }}
-                                          >
-                                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                                              <div className="bg-card border border-border rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
-                                                <div className="text-xs font-bold text-foreground tabular-nums">{item.value}</div>
-                                                <div className="text-[10px] text-muted-foreground text-center">{item.label}</div>
-                                              </div>
-                                              <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-border"></div>
-                                            </div>
-                                          </motion.div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <div className="flex gap-[3px] mt-2">
-                                {reservationKPIs.timingDistribution.map((item: any, index: number) => (
-                                  <div key={`label-${index}`} className="flex-1 min-w-0 text-center">
-                                    <span className="text-[10px] text-muted-foreground tabular-nums">{item.label}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  ) : (
-                    <div className="w-full text-center text-sm text-muted-foreground py-8">
-                      No timing data available
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div >
-
-
-
-
-
           </>
         );
 
@@ -2985,7 +2741,7 @@ export default function Dashboard() {
             <div className="col-span-12 lg:col-span-6">
               <FeedbackTypeChart
                 data={feedbackData?.feedbackTypeBreakdown}
-                onTypeClick={(type) => handleFeedbackMetricClick(type)}
+                onTypeClick={(type: string) => handleFeedbackMetricClick(type)}
               />
             </div>
 

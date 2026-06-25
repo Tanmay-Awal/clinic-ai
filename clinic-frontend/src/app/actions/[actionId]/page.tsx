@@ -230,7 +230,7 @@ export default function ActionDetailPage({ params }: { params: Promise<{ actionI
                                             </h1>
                                             <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
                                                 <FileText className="h-4 w-4 shrink-0" />
-                                                {ACTION_REQUEST_TYPE_LABELS[action.request_type as ActionRequestType] || action.request_type_label}
+                                                {ACTION_REQUEST_TYPE_LABELS[((action as any).type || '').toLowerCase()] || ACTION_REQUEST_TYPE_LABELS[(action.request_type || '').toLowerCase() as ActionRequestType] || action.request_type_label || (action as any).type || '-'}
                                                 <span className="text-border mx-1">•</span>
                                                 <ActionPriorityBadge priority={action.priority} />
                                             </div>
@@ -255,10 +255,7 @@ export default function ActionDetailPage({ params }: { params: Promise<{ actionI
                                         <div>
                                             <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">Phone</p>
                                             <div className="flex items-center gap-2">
-                                                <p className="text-sm font-mono font-medium">{unmaskedNumber || action.phone_number || 'Hidden'}</p>
-                                                <button onClick={handleToggleUnmask} className="flex items-center justify-center min-h-[44px] min-w-[44px] -m-2 text-muted-foreground hover:text-primary transition-colors">
-                                                    {isUnmasking ? <Loader2 className="h-4 w-4 animate-spin" /> : unmaskedNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                                </button>
+                                                <p className="text-sm font-mono font-medium">{action.caller_phone || action.phone_number || 'N/A'}</p>
                                             </div>
                                         </div>
                                         <div>
@@ -290,7 +287,7 @@ export default function ActionDetailPage({ params }: { params: Promise<{ actionI
                                             <span>Action Details</span>
                                         </div>
                                         <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap min-h-[80px]">
-                                            {action.notes || 'No notes available.'}
+                                            {action.description || action.notes || 'No description available.'}
                                         </p>
                                     </div>
                                 </motion.section>
@@ -501,7 +498,7 @@ export default function ActionDetailPage({ params }: { params: Promise<{ actionI
 
                                     <div className="pt-6 border-t border-border mt-6">
                                         <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Linked History</h3>
-                                        {action.linked_calls.length === 0 ? (
+                                        {!action.linked_calls || action.linked_calls.length === 0 ? (
                                             <p className="text-xs text-muted-foreground italic bg-secondary/10 p-3 rounded-lg border border-border/50">No linked calls.</p>
                                         ) : (
                                             <div className="space-y-3">

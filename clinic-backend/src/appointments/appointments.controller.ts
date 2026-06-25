@@ -21,6 +21,17 @@ export class AppointmentsController {
     return this.appointmentsService.getDoctors();
   }
 
+  @Get('context')
+  getClinicContext(
+    @Query('date') date?: string,
+    @Query('daysAhead') daysAhead?: string,
+  ) {
+    return this.appointmentsService.getClinicContext(
+      date,
+      daysAhead ? parseInt(daysAhead, 10) : 3,
+    );
+  }
+
   @Post('doctors')
   createDoctor(@Body() data: any) {
     return this.appointmentsService.createDoctor(data);

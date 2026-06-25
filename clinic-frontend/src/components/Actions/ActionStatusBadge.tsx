@@ -21,9 +21,10 @@ interface ActionStatusBadgeProps {
 }
 
 export function ActionStatusBadge({ status, className, showChevron = false }: ActionStatusBadgeProps) {
+    const normalizedStatus = status?.toLowerCase() as ActionStatus || 'open';
     return (
-        <Badge variant="outline" className={cn('text-xs font-medium gap-1.5 py-1 px-2.5 flex items-center w-fit', STATUS_COLORS[status], className)}>
-            {ACTION_STATUS_LABELS[status]}
+        <Badge variant="outline" className={cn('text-xs font-medium gap-1.5 py-1 px-2.5 flex items-center w-fit', STATUS_COLORS[normalizedStatus], className)}>
+            {ACTION_STATUS_LABELS[normalizedStatus]}
             {showChevron && <ChevronDown className="h-3 w-3 opacity-70" />}
         </Badge>
     );

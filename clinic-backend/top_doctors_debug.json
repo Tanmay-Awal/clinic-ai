@@ -1,0 +1,14 @@
+[
+  {
+    "id": "4",
+    "name": "Dr. Jones",
+    "specialization": "Cardiology",
+    "patientCount": "2"
+  },
+  {
+    "id": "2",
+    "name": "Dr. Jane Smith",
+    "specialization": "General Practice",
+    "patientCount": "1"
+  }
+]

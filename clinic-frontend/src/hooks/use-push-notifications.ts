@@ -45,7 +45,7 @@ export function usePushNotifications() {
         actionsApi.getVapidPublicKey().then((key) => {
             vapidKeyRef.current = key || null;
         }).catch(() => {
-            console.error('Failed to fetch VAPID public key from backend');
+            console.warn('Push notifications disabled: missing VAPID key from backend');
         });
     }, []);
 

@@ -37,8 +37,9 @@ export class AiService {
 
     try {
       const call = await this.callRepository.findOne({ where: { id: callId } });
-      if (!call || !call.transcript) {
-        this.logger.warn(`Call ${callId} not found or has no transcript`);
+      const botSummary = (call?.tool_calls_made as any)?.call_summary;
+      if (!call || (!call.transcript && !botSummary)) {
+        this.logger.warn(`Call ${callId} not found or has no transcript/summary`);
         return false;
       }
 
@@ -52,15 +53,20 @@ export class AiService {
           "key_insights": ["Insight 1", "Insight 2"],
           "actions_required": [
             {
-              "type": "Follow-up Call" | "Prescription Refill" | "Manual Review",
-              "description": "What needs to be done",
+              "type": "follow_up" | "prescription_refill" | "manual_review" | "urgent_case" | "callback" | "complaint" | "reschedule_request" | "cancellation_request" | "other",
+              "description": "Specific details on exactly what happened and why this action is needed (e.g. 'Patient John needs to reschedule his 3PM appointment to next Tuesday' instead of 'Review transcript')",
               "priority": "High" | "Medium" | "Low"
             }
           ]
         }
 
+        IMPORTANT: Do NOT create an action for successfully confirmed or booked appointments. Actions should ONLY be created when a human staff member needs to do something (e.g., call the patient back, manually review a request, handle a complaint, or process a cancellation/reschedule).
+
+        Bot summary (if available):
+        ${botSummary || 'None'}
+
         Transcript:
-        ${JSON.stringify(call.transcript)}
+        ${JSON.stringify(call.transcript || [])}
       `;
 
       const chatCompletion = await this.groq.chat.completions.create({
@@ -83,6 +89,7 @@ export class AiService {
 
       // We will create a CallAnalysis entity here to store the summary and sentiment.
       // call.analyzed_at = new Date();
+      call.category = parsedData.category || 'Other';
       await this.callRepository.save(call);
 
       const callAnalysis = this.callAnalysisRepository.create({
@@ -103,7 +110,7 @@ export class AiService {
           const action = this.actionRepository.create({
             call_id: call.id,
             caller_phone: call.from_number,
-            type: actionReq.type || 'Review',
+            type: actionReq.type || 'misc',
             description: actionReq.description,
             priority: actionReq.priority || 'Medium',
             status: 'Open',

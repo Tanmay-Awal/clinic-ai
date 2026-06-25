@@ -2,27 +2,32 @@ export type ActionStatus = 'open' | 'in_progress' | 'waiting_on_guest' | 'resolv
 export type ActionPriority = 'high' | 'medium' | 'low';
 
 export type ActionRequestType =
-    | 'promotions'
-    | 'large_group'
-    | 'system_error'
-    | 'availability_error'
-    | 'cancellation'
-    | 'update'
-    | 'waitlist'
-    | 'lost_and_found'
-    | 'misc';
+    | 'follow_up'
+    | 'prescription_refill'
+    | 'manual_review'
+    | 'urgent_case'
+    | 'callback'
+    | 'complaint'
+    | 'reschedule_request'
+    | 'cancellation_request'
+    | 'other';
 
 // Label mapping for display — used in badges and filters
-export const ACTION_REQUEST_TYPE_LABELS: Record<ActionRequestType, string> = {
-    promotions: 'Promotion Enquiry',
-    large_group: 'Large Group Booking',
-    system_error: 'System Error',
-    availability_error: 'Availability Error',
-    cancellation: 'Cancellation',
-    update: 'Booking Update',
-    waitlist: 'Waitlist',
-    lost_and_found: 'Lost & Found',
-    misc: 'Callback Needed',
+export const ACTION_REQUEST_TYPE_LABELS: Record<ActionRequestType | string, string> = {
+    follow_up: 'Follow-up Call',
+    prescription_refill: 'Prescription Refill',
+    manual_review: 'Manual Review',
+    urgent_case: 'Urgent Case',
+    callback: 'Callback Needed',
+    complaint: 'Patient Complaint',
+    reschedule_request: 'Reschedule Request',
+    cancellation_request: 'Cancellation Request',
+    other: 'Other',
+    // Fallbacks for older DB entries that shouldn't be actions but already exist in DB
+    booking: 'Appointment',
+    'booking confirmation': 'Appointment Confirmed',
+    'follow-up call': 'Follow-up Call',
+    'manual review': 'Manual Review',
 };
 
 export const ACTION_STATUS_LABELS: Record<ActionStatus, string> = {

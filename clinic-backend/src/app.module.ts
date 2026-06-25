@@ -7,6 +7,8 @@ import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import type { StringValue } from 'ms';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 import { SecurityMiddleware } from './common/middleware/security.middleware';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -43,6 +45,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { CallModule } from './call/call.module';
 import { AiModule } from './ai/ai.module';
 import { ActionsModule } from './actions/actions.module';
+import { ReportsModule } from './reports/reports.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AdminModule } from './admin/admin.module';
 import { UserInteractionModule } from './user-interaction/user-interaction.module';
@@ -52,6 +55,10 @@ import { UserInteractionModule } from './user-interaction/user-interaction.modul
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/public',
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -125,6 +132,7 @@ import { UserInteractionModule } from './user-interaction/user-interaction.modul
     DashboardModule,
     AdminModule,
     UserInteractionModule,
+    ReportsModule,
   ],
   controllers: [],
   providers: [

@@ -1,6 +1,8 @@
 import asyncio
 import os
 import sys
+import json
+import time
 from datetime import datetime as dt
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
@@ -23,10 +25,25 @@ from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.frames.frames import (
     Frame, TTSSpeakFrame, LLMMessagesAppendFrame, EndTaskFrame,
     UserStartedSpeakingFrame, UserSpeakingFrame, TranscriptionFrame,
-    BotStartedSpeakingFrame, BotStoppedSpeakingFrame
+    BotStartedSpeakingFrame, BotStoppedSpeakingFrame,
+    OutputAudioRawFrame, InputAudioRawFrame
 )
+import wave
 from pipecat_flows import FlowManager, NodeConfig, FlowsFunctionSchema, FlowArgs
-from tools import get_doctors, get_available_slots, book_appointment
+from tools import get_clinic_context, get_doctors, get_available_slots, book_appointment, ingest_call
+from runtime import (
+    classify_intent,
+    ensure_runtime_state,
+    mark_fallback,
+    note_interruption,
+    note_silence_prompt,
+    normalize_phone_for_tts,
+    normalize_time_for_tts,
+    render_clinic_context,
+    record_external_call,
+    summarize_call,
+    update_stage,
+)
 
 load_dotenv()
 logger.remove(0)
@@ -35,14 +52,38 @@ logger.add(sys.stderr, level="DEBUG")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3001/api")
 CLINIC_NAME = "City Health Clinic"
 
+class LocalAudioRecorder(FrameProcessor):
+    def __init__(self, call_id: str):
+        super().__init__()
+        rec_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'clinic-backend', 'public', 'recordings'))
+        os.makedirs(rec_dir, exist_ok=True)
+        
+        self.filepath = os.path.join(rec_dir, f"{call_id}.wav")
+        self.wav_file = wave.open(self.filepath, 'wb')
+        self.wav_file.setnchannels(1)
+        self.wav_file.setsampwidth(2)
+        self.wav_file.setframerate(16000)
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, OutputAudioRawFrame) or isinstance(frame, InputAudioRawFrame):
+            self.wav_file.writeframes(frame.audio)
+
+    async def cleanup(self):
+        if self.wav_file:
+            self.wav_file.close()
+            self.wav_file = None
+
 class TranscriptProcessor(FrameProcessor):
-    def __init__(self, context: LLMContext, task_getter=None):
+    def __init__(self, context: LLMContext, runtime_state: dict, task_getter=None):
         super().__init__()
         self._context = context
+        self.runtime_state = runtime_state
         self.last_interaction_time = asyncio.get_event_loop().time()
         self.task_getter = task_getter
         self.timeout_task = None
         self.is_running = True
+        self._last_user_text = ""
 
     def start_timeout_monitoring(self):
         self.last_interaction_time = asyncio.get_event_loop().time()
@@ -52,23 +93,37 @@ class TranscriptProcessor(FrameProcessor):
         while self.is_running:
             await asyncio.sleep(1)
             now = asyncio.get_event_loop().time()
-            if now - self.last_interaction_time > 12:
+            if now - self.last_interaction_time > 8:
                 # Reset interaction time to avoid spamming
                 self.last_interaction_time = now
                 if self.task_getter:
                     task = self.task_getter()
                     if task:
+                        note_silence_prompt(self.runtime_state)
                         logger.info("Silence detected. Prompting user...")
                         await task.queue_frames([TTSSpeakFrame("Are you still there?")])
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         await self.push_frame(frame, direction)
-        
+
         # Reset timeout on user speech/bot speech events
         if isinstance(frame, (UserStartedSpeakingFrame, UserSpeakingFrame, TranscriptionFrame,
                               BotStartedSpeakingFrame, BotStoppedSpeakingFrame, TTSSpeakFrame)):
             self.last_interaction_time = asyncio.get_event_loop().time()
+
+        if isinstance(frame, UserStartedSpeakingFrame):
+            note_interruption(self.runtime_state)
+
+        if isinstance(frame, TranscriptionFrame):
+            text = getattr(frame, "text", "") or getattr(frame, "transcript", "") or ""
+            if text and text != self._last_user_text:
+                self._last_user_text = text
+                self.runtime_state["last_user_text"] = text
+                intent = classify_intent(text, self.runtime_state)
+                self.runtime_state["intent"] = intent.intent
+                self.runtime_state["intent_confidence"] = intent.confidence
+                self.runtime_state["intent_hint"] = intent.fallback_hint
 
     def stop_monitoring(self):
         self.is_running = False
@@ -104,16 +159,59 @@ class AssistantSpeechMonitor(FrameProcessor):
         await self.push_frame(frame, direction)
         # Reset silence timeout when assistant frames (audio/TTS/speaking state) are emitted
         self.processor_to_reset.last_interaction_time = asyncio.get_event_loop().time()
+        if isinstance(frame, BotStartedSpeakingFrame):
+            self.processor_to_reset.runtime_state["assistant_speaking"] = True
+        if isinstance(frame, BotStoppedSpeakingFrame):
+            self.processor_to_reset.runtime_state["assistant_speaking"] = False
 
 
 # ==================== TOOL HANDLERS ====================
 
+
+def get_runtime(flow_manager: FlowManager) -> dict:
+    return flow_manager.state.get("runtime", {})
+
+
+def get_context_snapshot(flow_manager: FlowManager) -> dict:
+    runtime = get_runtime(flow_manager)
+    return runtime.get("context_snapshot") or {}
+
+
+def update_booking_state(flow_manager: FlowManager, **kwargs):
+    runtime = get_runtime(flow_manager)
+    booking_state = flow_manager.state.get("booking_data", {})
+    for key, value in kwargs.items():
+        if value is not None and value != "":
+            booking_state[key] = value
+    flow_manager.state["booking_data"] = booking_state
+    runtime["booking_data"] = booking_state
+    return booking_state
+
+
+def build_context_summary(snapshot: dict) -> str:
+    if not snapshot:
+        return ""
+    return render_clinic_context(snapshot)
+
+
+def build_confirmation_phone(phone: str) -> str:
+    return normalize_phone_for_tts(phone)
+
+
+def build_summary_payload(flow_manager: FlowManager, context_snapshot: dict) -> dict:
+    runtime = get_runtime(flow_manager)
+    transcript = flow_manager.state.get("_transcript", [])
+    summary_payload = summarize_call(runtime, transcript, context_snapshot)
+    runtime["summary_payload"] = summary_payload
+    return summary_payload
+
 async def handle_end_call(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+    update_stage(get_runtime(flow_manager), "end_call")
     await flow_manager.worker.queue_frames([
         TTSSpeakFrame("Thank you for calling City Health Clinic. Have a wonderful day!"),
         EndTaskFrame()
     ])
-    return None, create_end_call_node()
+    return None, create_end_call_node(get_context_snapshot(flow_manager))
 
 end_call_func = FlowsFunctionSchema(
     name="end_call",
@@ -125,7 +223,8 @@ end_call_func = FlowsFunctionSchema(
 
 async def handle_urgent_case(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    return None, create_urgent_case_node()
+    update_stage(get_runtime(flow_manager), "urgent_case")
+    return None, create_urgent_case_node(get_context_snapshot(flow_manager))
 
 urgent_case_func = FlowsFunctionSchema(
     name="urgent_case",
@@ -136,11 +235,12 @@ urgent_case_func = FlowsFunctionSchema(
 )
 
 async def handle_arrange_callback(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+    update_stage(get_runtime(flow_manager), "callback_arranged")
     await flow_manager.worker.queue_frames([
         TTSSpeakFrame("Perfect, I have arranged a callback for you. A member of our team will contact you shortly. Thank you for calling City Health Clinic!"),
         EndTaskFrame()
     ])
-    return None, create_end_call_node()
+    return None, create_end_call_node(get_context_snapshot(flow_manager))
 
 arrange_callback_func = FlowsFunctionSchema(
     name="arrange_callback",
@@ -152,7 +252,8 @@ arrange_callback_func = FlowsFunctionSchema(
 
 async def handle_doctor_info(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    return None, create_doctor_info_node()
+    update_stage(get_runtime(flow_manager), "doctor_info")
+    return None, create_doctor_info_node(get_context_snapshot(flow_manager))
 
 doctor_info_func = FlowsFunctionSchema(
     name="doctor_info",
@@ -164,11 +265,17 @@ doctor_info_func = FlowsFunctionSchema(
 
 async def handle_start_booking(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    state = flow_manager.state.get("booking_data", {})
-    for k, v in args.items():
-        if v: state[k] = v
-    flow_manager.state.update({"booking_data": state})
-    return None, create_gather_info_node(flow_manager.state.get("caller_phone", "Unknown"))
+    runtime = get_runtime(flow_manager)
+    update_stage(runtime, "booking")
+    state = update_booking_state(flow_manager, **args)
+    runtime["intent"] = runtime.get("intent") or "booking"
+    if state.get("date"):
+        runtime["selected_date"] = state["date"]
+    return None, create_gather_info_node(
+        caller_phone=flow_manager.state.get("caller_phone", "Unknown"),
+        context_snapshot=get_context_snapshot(flow_manager),
+        runtime_state=runtime,
+    )
 
 start_booking_func = FlowsFunctionSchema(
     name="start_booking",
@@ -180,60 +287,49 @@ start_booking_func = FlowsFunctionSchema(
 
 async def handle_check_slots(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    # Instantly output a filler speak frame to mask database/external api latency
-    await flow_manager.worker.queue_frames([
-        TTSSpeakFrame("Let me check the available timings for you...")
-    ])
-    
+    runtime = get_runtime(flow_manager)
+    update_stage(runtime, "slot_lookup")
+    await flow_manager.worker.queue_frames([TTSSpeakFrame("Let me check the available timings for you...")])
+
     date = args.get("date")
     spec = args.get("specialization", "General")
-    docs = await get_doctors()
-    doc_list = docs.get("doctors") or []
-    
-    doc_id = 1
-    if doc_list:
-        doc_id = doc_list[0].get("id", 1) # Default to first
-        for d in doc_list:
-            if spec and spec.lower() in (d.get("specialization") or "").lower():
-                doc_id = d.get("id", 1)
+    snapshot = get_context_snapshot(flow_manager)
+    if not snapshot or snapshot.get("date") != date:
+        snapshot = await get_clinic_context(date=date, days_ahead=3, refresh=False)
+        runtime["context_snapshot"] = snapshot
+
+    availability = snapshot.get("availability", [])
+    chosen = None
+    for doctor in availability:
+        doctor_spec = (doctor.get("specialization") or "").lower()
+        if not spec or spec.lower() in doctor_spec:
+            chosen = doctor
+            if doctor.get("available_slots"):
                 break
-                
-    
-    slots = await get_available_slots(doc_id, date)
-    available = slots.get("available_slots", [])
-    
-    # Proactive slot lookahead logic
-    alternative_slots = {}
-    if not available:
-        logger.info(f"No slots available on {date}. Looking ahead...")
-        import datetime
-        try:
-            current_date = datetime.datetime.strptime(date, "%Y-%m-%d")
-            # Look ahead up to 3 days
-            for i in range(1, 4):
-                next_date_str = (current_date + datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-                next_slots = await get_available_slots(doc_id, next_date_str)
-                next_available = next_slots.get("available_slots", [])
-                if next_available:
-                    alternative_slots[next_date_str] = next_available
-                    logger.info(f"Found alternative slots on {next_date_str}: {next_available}")
-                    break
-        except Exception as e:
-            logger.error(f"Error checking alternative slots: {e}")
-    
-    state = flow_manager.state.get("booking_data", {})
-    state["date"] = date
-    state["specialization"] = spec
-    state["doctor_id"] = doc_id
-    state["available_slots"] = available
-    state["alternative_slots"] = alternative_slots
-    flow_manager.state.update({"booking_data": state})
-    
+    if not chosen and availability:
+        chosen = availability[0]
+
+    available = (chosen or {}).get("available_slots", [])
+    alternative_slots = (chosen or {}).get("alternative_slots", {})
+    if not available and snapshot.get("next_best_dates"):
+        alternative_slots = snapshot.get("next_best_dates", {})
+
+    update_booking_state(
+        flow_manager,
+        date=date,
+        specialization=spec,
+        doctor_id=(chosen or {}).get("doctor_id", 1),
+        available_slots=available,
+        alternative_slots=alternative_slots,
+    )
+
     return None, create_gather_info_node(
         flow_manager.state.get("caller_phone", "Unknown"),
         target_date=date,
         available_slots=available,
-        alternative_slots=alternative_slots
+        alternative_slots=alternative_slots,
+        context_snapshot=snapshot,
+        runtime_state=runtime,
     )
 
 check_slots_func = FlowsFunctionSchema(
@@ -249,19 +345,15 @@ check_slots_func = FlowsFunctionSchema(
 
 async def handle_book_appointment(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    state = flow_manager.state.get("booking_data", {})
-    for k, v in args.items():
-        if v: state[k] = v
-    flow_manager.state.update({"booking_data": state})
-    return None, create_confirm_booking_node()
+    update_stage(get_runtime(flow_manager), "booking_recap")
+    update_booking_state(flow_manager, **args)
+    return None, create_confirm_booking_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
 
 async def handle_confirm_details(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    state = flow_manager.state.get("booking_data", {})
-    for k, v in args.items():
-        if v: state[k] = v
-    flow_manager.state.update({"booking_data": state})
-    return None, create_confirm_booking_node()
+    update_stage(get_runtime(flow_manager), "booking_recap")
+    update_booking_state(flow_manager, **args)
+    return None, create_confirm_booking_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
 
 confirm_details_func = FlowsFunctionSchema(
     name="confirm_details",
@@ -277,22 +369,34 @@ confirm_details_func = FlowsFunctionSchema(
 
 async def handle_finalize_booking(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
+    runtime = get_runtime(flow_manager)
+    update_stage(runtime, "finalizing_booking")
     state = flow_manager.state.get("booking_data", {})
     try:
+        summary_payload = build_summary_payload(flow_manager, get_context_snapshot(flow_manager))
+        runtime["booking_result"] = {}
         res = await book_appointment(
             state.get("doctor_id", 1),
             state.get("date"),
             state.get("time"),
             state.get("patient_name"),
-            state.get("patient_phone")
+            state.get("patient_phone"),
+            conversation_state=summary_payload.get("conversation_state", {}),
+            telemetry=summary_payload.get("telemetry", {}),
+            call_summary=summary_payload.get("call_summary", ""),
+            intent=summary_payload.get("intent", ""),
+            context_snapshot=get_context_snapshot(flow_manager),
         )
         if "error" in res or not res.get("success", False):
             logger.error("Booking API returned error: " + str(res))
-            return None, create_booking_error_node()
+            mark_fallback(runtime, "booking_failed")
+            return None, create_booking_error_node(get_context_snapshot(flow_manager), runtime)
+        runtime["booking_result"] = res
     except Exception as e:
         logger.error(f"Failed to book appointment: {e}")
-        return None, create_booking_error_node()
-    return None, create_success_node()
+        mark_fallback(runtime, "booking_exception")
+        return None, create_booking_error_node(get_context_snapshot(flow_manager), runtime)
+    return None, create_success_node(get_context_snapshot(flow_manager), runtime)
 
 finalize_booking_func = FlowsFunctionSchema(
     name="finalize_booking",
@@ -304,7 +408,9 @@ finalize_booking_func = FlowsFunctionSchema(
 
 # ==================== NODE DEFINITIONS ====================
 
-def create_initial_node() -> NodeConfig:
+def create_initial_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    context_block = build_context_summary(context_snapshot or {})
+    intent_hint = (runtime_state or {}).get("intent_hint", "")
     return NodeConfig(
         name="initial",
         task_messages=[
@@ -328,23 +434,28 @@ ACTIONS:
 - User wants to book: call `start_booking`
 - User has emergency or requests live transfer/medical advice: call `urgent_case`
 - User asks about doctors: call `doctor_info`
+
+CLINIC SNAPSHOT:
+{context_block}
+
+INTENT HINT:
+{intent_hint or 'None yet'}
 """
             }
         ],
         functions=[start_booking_func, urgent_case_func, doctor_info_func, end_call_func]
     )
 
-def create_doctor_info_node() -> NodeConfig:
+def create_doctor_info_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    context_block = build_context_summary(context_snapshot or {})
     return NodeConfig(
         name="doctor_info",
         task_messages=[
             {
                 "role": "system",
                 "content": f"""You are answering questions about doctors.
-We have:
-- Dr. Smith (General Practice)
-- Dr. Davis (Pediatrics)
-- Dr. Jones (Cardiology)
+Current clinic snapshot:
+{context_block}
 
 Ask if they want to book an appointment with one of them.
 IF yes -> call `start_booking`.
@@ -354,7 +465,14 @@ IF yes -> call `start_booking`.
         functions=[start_booking_func, urgent_case_func, end_call_func]
     )
 
-def create_gather_info_node(caller_phone: str = "Unknown", target_date: str = None, available_slots: list = None, alternative_slots: dict = None) -> NodeConfig:
+def create_gather_info_node(
+    caller_phone: str = "Unknown",
+    target_date: str = None,
+    available_slots: list = None,
+    alternative_slots: dict = None,
+    context_snapshot: dict | None = None,
+    runtime_state: dict | None = None,
+) -> NodeConfig:
     phone_prompt = ""
     if caller_phone and caller_phone != "Unknown":
         last_3 = caller_phone[-3:]
@@ -411,6 +529,9 @@ def create_gather_info_node(caller_phone: str = "Unknown", target_date: str = No
                 alt_text = " ".join([f"On {d}: {', '.join(s)}." for d, s in alternative_slots.items()])
             slots_prompt = f"Unfortunately, there are no available slots on {target_date}. However, alternative slots are: {alt_text}. Apologize and offer these alternatives to the user."
 
+    context_block = build_context_summary(context_snapshot or {})
+    intent_hint = (runtime_state or {}).get("intent_hint", "")
+
     return NodeConfig(
         name="gather_info",
         task_messages=[
@@ -418,6 +539,10 @@ def create_gather_info_node(caller_phone: str = "Unknown", target_date: str = No
                 "role": "system",
                 "content": f"""You are collecting details for an appointment.
 {calendar_ref}
+CLINIC SNAPSHOT:
+{context_block}
+INTENT HINT:
+{intent_hint or 'None'}
 CLINIC HOURS: Monday-Friday 8:00 AM - 6:00 PM, Saturday 9:00 AM - 4:00 PM, Sunday Closed.
 REQUIRED DETAILS: Date, Specialization, Time, Patient Name, Patient Phone.
 
@@ -454,15 +579,16 @@ CRITICAL RULES:
         functions=[check_slots_func, confirm_details_func, urgent_case_func, end_call_func, start_booking_func]
     )
 
-def create_confirm_booking_node() -> NodeConfig:
+def create_confirm_booking_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    booking_data = (runtime_state or {}).get("booking_data", {})
     return NodeConfig(
         name="confirm_booking",
         task_messages=[
             {
                 "role": "system",
-                "content": """Recap the booking details to the patient.
-"Just to confirm, I have you down for an appointment on [Date] at [Time] for [Specialization], under the name [Patient Name] at [Phone]. Is that correct?"
-Note: When confirming the phone number, read it slowly and format it with hyphens or spaces (e.g. '9 8 7... 6 5 4... 3 2 1 0') so the TTS pauses between chunks.
+                "content": f"""Recap the booking details to the patient.
+"Just to confirm, I have you down for an appointment on {booking_data.get('date', '[Date]')} at {normalize_time_for_tts(str(booking_data.get('time', '[Time]')))} for {booking_data.get('specialization', '[Specialization]')}, under the name {booking_data.get('patient_name', '[Patient Name]')} at {build_confirmation_phone(str(booking_data.get('patient_phone', '[Phone]')))}. Is that correct?"
+Note: When confirming the phone number, read it slowly and format it with spaces so the TTS pauses between chunks.
 
 IF YES -> call `finalize_booking`.
 IF NO -> call `start_booking` to modify.
@@ -472,7 +598,7 @@ IF NO -> call `start_booking` to modify.
         functions=[finalize_booking_func, start_booking_func, end_call_func]
     )
 
-def create_success_node() -> NodeConfig:
+def create_success_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
     return NodeConfig(
         name="success",
         task_messages=[
@@ -487,7 +613,7 @@ IF NO -> call `end_call`.
         functions=[end_call_func, doctor_info_func]
     )
 
-def create_urgent_case_node() -> NodeConfig:
+def create_urgent_case_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
     return NodeConfig(
         name="urgent_case",
         task_messages=[
@@ -503,7 +629,7 @@ IF NO -> call `start_booking` to return to booking, or call `end_call` if they w
         functions=[arrange_callback_func, start_booking_func, end_call_func]
     )
 
-def create_booking_error_node() -> NodeConfig:
+def create_booking_error_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
     return NodeConfig(
         name="booking_error",
         task_messages=[
@@ -517,7 +643,7 @@ Then call `end_call`."""
         functions=[end_call_func]
     )
 
-def create_end_call_node() -> NodeConfig:
+def create_end_call_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
     return NodeConfig(
         name="end_call",
         task_messages=[
@@ -533,108 +659,145 @@ def create_end_call_node() -> NodeConfig:
 # ==================== MAIN PIPELINE ====================
 
 async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, caller_phone: str = "Unknown", testing: bool = False):
-    async with aiohttp.ClientSession() as session:
-        serializer = TwilioFrameSerializer(
-            stream_sid=stream_sid,
-            call_sid=call_sid,
-            account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
-            auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
-        )
+    serializer = TwilioFrameSerializer(
+        stream_sid=stream_sid,
+        call_sid=call_sid,
+        account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
+        auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
+    )
 
-        transport = FastAPIWebsocketTransport(
-            websocket=websocket_client,
-            params=FastAPIWebsocketParams(
-                audio_in_enabled=True,
-                audio_out_enabled=True,
-                add_wav_header=False,
-                vad_analyzer=SileroVADAnalyzer(params=VADParams(start_secs=0.15, stop_secs=0.3, confidence=0.45)),
-                serializer=serializer,
-            ),
-        )
+    transport = FastAPIWebsocketTransport(
+        websocket=websocket_client,
+        params=FastAPIWebsocketParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            add_wav_header=False,
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(start_secs=0.08, stop_secs=0.18, confidence=0.5)),
+            serializer=serializer,
+        ),
+    )
 
-        stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
-        tts = CartesiaTTSService(api_key=os.getenv("CARTESIA_API_KEY"), voice_id="79a125e8-cd45-4c13-8a67-188112f4dd22")
-        llm = OpenAILLMService(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile")
+    stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
+    tts = CartesiaTTSService(api_key=os.getenv("CARTESIA_API_KEY"), voice_id="79a125e8-cd45-4c13-8a67-188112f4dd22")
+    llm = OpenAILLMService(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile")
 
-        context = LLMContext(
-            messages=[]
-        )
-        context_aggregator = LLMContextAggregatorPair(context)
-        transcript_processor = TranscriptProcessor(context, lambda: task)
+    context = LLMContext(messages=[])
+    context_aggregator = LLMContextAggregatorPair(context)
 
-        assistant_monitor = AssistantSpeechMonitor(transcript_processor)
+    runtime_state = None
+    context_snapshot_task = asyncio.create_task(get_clinic_context(refresh=False))
 
-        pipeline = Pipeline([
-            transport.input(),
-            stt,
-            transcript_processor,
-            context_aggregator.user(),
-            llm,
-            tts,
-            assistant_monitor,
-            transport.output(),
-            context_aggregator.assistant(),
-        ])
+    pipeline_placeholder = None
+    task = None
 
-        task = PipelineTask(pipeline, params=PipelineParams(
-            audio_in_sample_rate=8000,
-            allow_interruptions=True
-        ))
+    def task_getter():
+        return task
 
-        # Initialize FlowManager
-        flow_manager = FlowManager(
-            llm=llm,
-            context_aggregator=context_aggregator,
-            worker=task,
-        )
+    runtime_state = ensure_runtime_state({"caller_phone": caller_phone, "booking_data": {}}, caller_phone)
+    transcript_processor = TranscriptProcessor(context, runtime_state, task_getter)
+    assistant_monitor = AssistantSpeechMonitor(transcript_processor)
 
-        flow_manager.state["caller_phone"] = caller_phone
+    recorder = LocalAudioRecorder(call_id=call_sid)
 
-        # FlowManager manages context
-        await flow_manager.initialize(create_initial_node())
+    pipeline = Pipeline([
+        transport.input(),
+        recorder,
+        stt,
+        transcript_processor,
+        context_aggregator.user(),
+        llm,
+        tts,
+        assistant_monitor,
+        transport.output(),
+        context_aggregator.assistant(),
+    ])
 
-        call_info = {"start_time": None, "end_time": None}
+    task = PipelineTask(pipeline, params=PipelineParams(
+        audio_in_sample_rate=8000,
+        allow_interruptions=True
+    ))
 
-        @transport.event_handler("on_client_connected")
-        async def on_client_connected(transport, client):
-            transcript_processor.start_timeout_monitoring()
-            call_info["start_time"] = dt.utcnow().isoformat() + "Z"
-            
-            ist_time = dt.now(ZoneInfo("Asia/Kolkata"))
-            hour = ist_time.hour
-            if hour < 12:
-                time_of_day = "Morning"
-            elif hour < 17:
-                time_of_day = "Afternoon"
-            else:
-                time_of_day = "Evening"
-            
-            # Trigger the LLM to speak first.
-            greeting = f"Good {time_of_day}, This is {CLINIC_NAME}, I'm Aria. How can I help you today."
-            # Add greeting directly to context and TTS
-            await task.queue_frames([TTSSpeakFrame(greeting)])
-            await task.queue_frames([LLMMessagesAppendFrame(messages=[{"role": "assistant", "content": greeting}])])
+    flow_manager = FlowManager(
+        llm=llm,
+        context_aggregator=context_aggregator,
+        worker=task,
+    )
 
-        @transport.event_handler("on_client_disconnected")
-        async def on_client_disconnected(transport, client):
-            transcript_processor.stop_monitoring()
-            call_info["end_time"] = dt.utcnow().isoformat() + "Z"
-            logger.info("Twilio client disconnected. Sending transcript to backend...")
-            transcript = transcript_processor.get_transcript()
-            payload = {
-                "call_id": call_sid, # use call_sid as ID since Daily participant ID is gone
-                "caller_phone": caller_phone,
-                "transcript": transcript,
-                "start_time": call_info["start_time"],
-                "end_time": call_info["end_time"],
-            }
-            try:
-                headers = {"x-bot-api-key": os.getenv("BOT_API_KEY")}
-                async with session.post(f"{BACKEND_URL}/calls/ingest", json=payload, headers=headers) as resp:
-                    logger.info(f"Backend ingest status: {resp.status}")
-            except Exception as e:
-                logger.error(f"Failed to ingest to backend: {e}")
-            await task.cancel()
+    flow_manager.state["caller_phone"] = caller_phone
+    flow_manager.state["booking_data"] = {}
+    flow_manager.state["runtime"] = runtime_state
+    runtime_state["caller_phone"] = caller_phone
+    runtime_state["booking_data"] = flow_manager.state["booking_data"]
+    try:
+        runtime_state["context_snapshot"] = await context_snapshot_task
+    except Exception as exc:
+        logger.warning(f"Context prefetch failed, falling back to empty snapshot: {exc}")
+        runtime_state["context_snapshot"] = {
+            "clinic_name": CLINIC_NAME,
+            "timezone": "UTC",
+            "doctors": [],
+            "availability": [],
+            "best_matches": [],
+            "clinic_hours": {},
+            "next_best_dates": {},
+        }
 
-        runner = PipelineRunner(handle_sigint=False, force_gc=True)
-        await runner.run(task)
+    await flow_manager.initialize(create_initial_node(runtime_state["context_snapshot"], runtime_state))
+
+    call_info = {"start_time": None, "end_time": None}
+
+    @transport.event_handler("on_client_connected")
+    async def on_client_connected(transport, client):
+        transcript_processor.start_timeout_monitoring()
+        call_info["start_time"] = dt.utcnow().isoformat() + "Z"
+        update_stage(runtime_state, "greeting")
+
+        ist_time = dt.now(ZoneInfo("Asia/Kolkata"))
+        hour = ist_time.hour
+        if hour < 12:
+            time_of_day = "Morning"
+        elif hour < 17:
+            time_of_day = "Afternoon"
+        else:
+            time_of_day = "Evening"
+
+        greeting = f"Good {time_of_day}, this is {CLINIC_NAME}. I'm Aria. How can I help you today?"
+        runtime_state["last_bot_text"] = greeting
+        await task.queue_frames([TTSSpeakFrame(greeting)])
+        await task.queue_frames([LLMMessagesAppendFrame(messages=[{"role": "assistant", "content": greeting}])])
+
+    @transport.event_handler("on_client_disconnected")
+    async def on_client_disconnected(transport, client):
+        transcript_processor.stop_monitoring()
+        call_info["end_time"] = dt.utcnow().isoformat() + "Z"
+        update_stage(runtime_state, "ended")
+        logger.info("Twilio client disconnected. Sending transcript to backend...")
+
+        transcript = transcript_processor.get_transcript()
+        flow_manager.state["_transcript"] = transcript
+        summary_payload = build_summary_payload(flow_manager, runtime_state.get("context_snapshot", {}))
+        payload = {
+            "call_id": call_sid,
+            "caller_phone": caller_phone,
+            "transcript": transcript,
+            "start_time": call_info["start_time"],
+            "end_time": call_info["end_time"],
+            "call_status": "ended",
+            "needs_ai_processing": True,
+            "call_summary": summary_payload.get("call_summary", ""),
+            "conversation_state": summary_payload.get("conversation_state", {}),
+            "telemetry": summary_payload.get("telemetry", {}),
+            "intent": summary_payload.get("intent", ""),
+            "context_snapshot": runtime_state.get("context_snapshot", {}),
+            "booking_result": runtime_state.get("booking_result", {}),
+            "recording_url": f"{BACKEND_URL.replace('/api', '')}/public/recordings/{call_sid}.wav",
+        }
+        try:
+            await ingest_call(payload)
+            logger.info("Backend ingest completed")
+        except Exception as e:
+            logger.error(f"Failed to ingest to backend: {e}")
+        await task.cancel()
+
+    runner = PipelineRunner(handle_sigint=False, force_gc=True)
+    await runner.run(task)

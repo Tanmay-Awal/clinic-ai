@@ -31,7 +31,15 @@ app.add_middleware(
 async def start_call(request: Request):
     print("POST TwiML")
     form_data = await request.form()
-    caller_phone = form_data.get("From", "Unknown")
+    from_number = form_data.get("From", "Unknown")
+    to_number = form_data.get("To", "Unknown")
+    
+    # If the From number is the bot's (+1 number), use the To number as the caller.
+    # Vice versa for inbound vs outbound calls.
+    if from_number.startswith("+1"):
+        caller_phone = to_number
+    else:
+        caller_phone = from_number
     
     # Generate dynamic WebSocket URL based on request host
     host = request.headers.get("host", "localhost:8765")

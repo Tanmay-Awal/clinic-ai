@@ -15,7 +15,7 @@ export function useReservationDashboard(
   return useQuery({
     queryKey: queryKeys.dashboard.reservation(params),
     queryFn: () => dashboardApi.getReservationDashboard(params),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     ...queryOptions,
   });
 }

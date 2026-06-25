@@ -131,7 +131,7 @@ export function FunnelAnalyticsChart({ title, description, data }: FunnelAnalyti
                       : 'bg-rose-500/10 text-rose-400'
                   }`}
               >
-                {stage.conversion}%
+                {Math.round(stage.conversion)}%
               </span>
             </div>
           </div>

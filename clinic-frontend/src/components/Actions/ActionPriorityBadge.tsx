@@ -22,9 +22,10 @@ interface ActionPriorityBadgeProps {
 }
 
 export function ActionPriorityBadge({ priority, className }: ActionPriorityBadgeProps) {
+    const normalizedPriority = priority?.toLowerCase() as ActionPriority || 'medium';
     return (
-        <Badge variant="outline" className={cn('text-xs', PRIORITY_COLORS[priority], className)}>
-            {PRIORITY_LABELS[priority]}
+        <Badge variant="outline" className={cn('text-xs', PRIORITY_COLORS[normalizedPriority], className)}>
+            {PRIORITY_LABELS[normalizedPriority]}
         </Badge>
     );
 }

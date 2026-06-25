@@ -251,6 +251,8 @@ export interface ReservationDashboardResponse {
     conversionFunnel?: { stage: string; count: number; pct: number }[];
     volumeComparison?: { previousTrend?: { date?: string; label?: string; volume?: number; value?: number }[] } | null;
     trendingTopics?: TrendingTopicItem[];
+    topDoctors?: { name: string; specialization: string; patientCount: number }[];
+    topDiseases?: { name: string; count: number }[];
     afterHoursStats?: {
         callsAfterHours: number;
         bookingsDoneAfterHours: number;
