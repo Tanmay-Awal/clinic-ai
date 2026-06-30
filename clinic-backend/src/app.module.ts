@@ -57,7 +57,7 @@ import { UserInteractionModule } from './user-interaction/user-interaction.modul
       envFilePath: '.env',
     }),
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public'),
+      rootPath: join(process.cwd(), 'public'),
       serveRoot: '/public',
     }),
     ThrottlerModule.forRootAsync({

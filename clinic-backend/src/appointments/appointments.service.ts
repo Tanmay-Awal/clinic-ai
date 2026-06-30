@@ -76,6 +76,7 @@ export class AppointmentsService {
 
   private async getClinicProfile() {
     const settings = await this.organisationSettingsRepository.findOne({
+      where: {},
       order: { created_at: 'ASC' },
     });
 

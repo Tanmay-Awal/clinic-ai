@@ -1,5 +1,11 @@
 [
   {
+    "id": "3",
+    "name": "Dr. Davis",
+    "specialization": "Pediatrics",
+    "patientCount": "4"
+  },
+  {
     "id": "4",
     "name": "Dr. Jones",
     "specialization": "Cardiology",
@@ -9,6 +15,6 @@
     "id": "2",
     "name": "Dr. Jane Smith",
     "specialization": "General Practice",
-    "patientCount": "1"
+    "patientCount": "2"
   }
 ]

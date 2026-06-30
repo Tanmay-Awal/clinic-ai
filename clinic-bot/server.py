@@ -4,17 +4,17 @@
 # SPDX-License-Identifier: BSD 2-Clause License
 #
 
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
 import argparse
 import json
 
 import uvicorn
 from bot import run_bot
-from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import HTMLResponse
-
-load_dotenv()
 
 app = FastAPI()
 
@@ -66,14 +66,25 @@ async def websocket_endpoint(websocket: WebSocket):
     print("New WebSocket connection request...")
     await websocket.accept()
     start_data = websocket.iter_text()
-    await start_data.__anext__()
-    call_data = json.loads(await start_data.__anext__())
+    connected_msg = await start_data.__anext__()
+    start_msg = await start_data.__anext__()
+    call_data = json.loads(start_msg)
     print(call_data, flush=True)
     stream_sid = call_data["start"]["streamSid"]
     call_sid = call_data["start"]["callSid"]
     custom_params = call_data["start"].get("customParameters", {})
     caller_phone = custom_params.get("caller_phone", "Unknown")
     print("WebSocket connection accepted. Caller Phone:", caller_phone)
+
+    # Replay the consumed messages so Pipecat's transport receives them
+    original_receive = websocket.receive_text
+    async def replayed_receive():
+        if replayed_receive.queue:
+            return replayed_receive.queue.pop(0)
+        return await original_receive()
+    replayed_receive.queue = [connected_msg, start_msg]
+    websocket.receive_text = replayed_receive
+
     await run_bot(websocket, stream_sid, call_sid, caller_phone, app.state.testing)
 
 

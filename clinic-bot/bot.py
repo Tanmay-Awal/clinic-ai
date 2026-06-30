@@ -50,7 +50,70 @@ logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3001/api")
+
 CLINIC_NAME = "City Health Clinic"
+
+class RotatedGroqLLMService(OpenAILLMService):
+    def __init__(self, api_keys: list, *args, **kwargs):
+        self.api_keys = [k for k in api_keys if k]
+        self.current_key_idx = 0
+        if not self.api_keys:
+            raise ValueError("At least one Groq API key must be provided.")
+        super().__init__(api_key=self.api_keys[0], *args, **kwargs)
+
+    def _rotate_key(self):
+        from openai import AsyncOpenAI
+        self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
+        next_key = self.api_keys[self.current_key_idx]
+        logger.info(f"Rotating Groq API Key to key index {self.current_key_idx} (masked: ...{next_key[-6:] if len(next_key) > 6 else next_key})")
+        # Properly recreate the underlying client so connection pools and headers update
+        if hasattr(self, '_async_client'):
+            self._async_client = AsyncOpenAI(api_key=next_key, base_url="https://api.groq.com/openai/v1")
+        if hasattr(self, '_client'):
+            self._client = AsyncOpenAI(api_key=next_key, base_url="https://api.groq.com/openai/v1")
+
+    async def get_chat_completions(self, context: LLMContext):
+        # Optimize context messages for prefix stability and prompt caching
+        original_messages = list(context.messages)
+        
+        system_msgs = [msg for msg in original_messages if msg.get("role") == "system"]
+        other_msgs = [msg for msg in original_messages if msg.get("role") != "system"]
+        
+        # Keep only the core persona (first) and current active node prompt (last)
+        active_systems = []
+        if len(system_msgs) > 0:
+            active_systems.append(system_msgs[0])
+        if len(system_msgs) > 1:
+            active_systems.append(system_msgs[-1])
+            
+        consolidated_content = "\n\n---\n\n".join([msg.get("content", "") for msg in active_systems])
+        consolidated_system_msg = {
+            "role": "system",
+            "content": consolidated_content
+        }
+        
+        # Re-assign the optimized list to context messages before calling API
+        context.set_messages([consolidated_system_msg] + other_msgs)
+
+        max_retries = len(self.api_keys)
+        try:
+            for attempt in range(max_retries):
+                try:
+                    return await super().get_chat_completions(context)
+                except Exception as e:
+                    err_msg = str(e).lower()
+                    is_429 = "rate limit" in err_msg or "429" in err_msg
+                    is_restricted = "organization restricted" in err_msg or "organization_restricted" in err_msg
+                    if (is_429 or is_restricted) and attempt < max_retries - 1:
+                        logger.warning(f"Groq API Key index {self.current_key_idx} hit Rate Limit or Restriction. Retrying with next key...")
+                        self._rotate_key()
+                        await asyncio.sleep(0.5)
+                        continue
+                    else:
+                        raise e
+        finally:
+            # Restore original messages
+            context.set_messages(original_messages)
 
 class LocalAudioRecorder(FrameProcessor):
     def __init__(self, call_id: str):
@@ -66,6 +129,7 @@ class LocalAudioRecorder(FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
+        await self.push_frame(frame, direction)
         if isinstance(frame, OutputAudioRawFrame) or isinstance(frame, InputAudioRawFrame):
             self.wav_file.writeframes(frame.audio)
 
@@ -181,7 +245,7 @@ def update_booking_state(flow_manager: FlowManager, **kwargs):
     runtime = get_runtime(flow_manager)
     booking_state = flow_manager.state.get("booking_data", {})
     for key, value in kwargs.items():
-        if value is not None and value != "":
+        if value is not None and value != "" and str(value).lower() != "null":
             booking_state[key] = value
     flow_manager.state["booking_data"] = booking_state
     runtime["booking_data"] = booking_state
@@ -263,19 +327,18 @@ doctor_info_func = FlowsFunctionSchema(
     required=[]
 )
 
+
+
 async def handle_start_booking(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
     runtime = get_runtime(flow_manager)
     update_stage(runtime, "booking")
     state = update_booking_state(flow_manager, **args)
     runtime["intent"] = runtime.get("intent") or "booking"
-    if state.get("date"):
-        runtime["selected_date"] = state["date"]
-    return None, create_gather_info_node(
-        caller_phone=flow_manager.state.get("caller_phone", "Unknown"),
-        context_snapshot=get_context_snapshot(flow_manager),
-        runtime_state=runtime,
-    )
+    
+    # If they already gave date and specialization, we could skip nodes, but for strictness:
+    # Always transition to gather_date first. The LLM will immediately call provide_date if it already knows it.
+    return None, create_gather_date_node(get_context_snapshot(flow_manager), runtime)
 
 start_booking_func = FlowsFunctionSchema(
     name="start_booking",
@@ -285,86 +348,133 @@ start_booking_func = FlowsFunctionSchema(
     required=[]
 )
 
-async def handle_check_slots(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+async def handle_provide_date(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    runtime = get_runtime(flow_manager)
-    update_stage(runtime, "slot_lookup")
-    await flow_manager.worker.queue_frames([TTSSpeakFrame("Let me check the available timings for you...")])
-
     date = args.get("date")
-    spec = args.get("specialization", "General")
+    update_booking_state(flow_manager, date=date)
+    return None, create_gather_spec_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
+
+provide_date_func = FlowsFunctionSchema(
+    name="provide_date",
+    handler=handle_provide_date,
+    description="User provided the date for the appointment.",
+    properties={"date": {"type": "string", "description": "YYYY-MM-DD"}},
+    required=["date"]
+)
+
+async def handle_provide_specialization(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+    args = args or {}
+    spec = args.get("specialization", "General Practice")
+    date = flow_manager.state.get("booking_data", {}).get("date")
+    
     snapshot = get_context_snapshot(flow_manager)
     if not snapshot or snapshot.get("date") != date:
         snapshot = await get_clinic_context(date=date, days_ahead=3, refresh=False)
-        runtime["context_snapshot"] = snapshot
+        get_runtime(flow_manager)["context_snapshot"] = snapshot
 
     availability = snapshot.get("availability", [])
     chosen = None
-    for doctor in availability:
-        doctor_spec = (doctor.get("specialization") or "").lower()
-        if not spec or spec.lower() in doctor_spec:
-            chosen = doctor
-            if doctor.get("available_slots"):
+    
+    # Check matching
+    if spec and str(spec).lower() not in ["general", "general practice"]:
+        spec_clean = str(spec).lower().strip().replace("dr.", "").replace("dr", "").strip()
+        for doctor in availability:
+            doctor_spec = (doctor.get("specialization") or "").lower()
+            doctor_name = (doctor.get("name") or "").lower().replace("dr.", "").replace("dr", "").strip()
+            if spec_clean in doctor_spec or spec_clean in doctor_name:
+                chosen = doctor
                 break
+    
     if not chosen and availability:
         chosen = availability[0]
+        spec = "General Practice"
+
+    if chosen:
+        await flow_manager.worker.queue_frames([TTSSpeakFrame("Let me check the available timings for you...")])
 
     available = (chosen or {}).get("available_slots", [])
     alternative_slots = (chosen or {}).get("alternative_slots", {})
-    if not available and snapshot.get("next_best_dates"):
+    if not available and snapshot.get("next_best_dates") and chosen:
         alternative_slots = snapshot.get("next_best_dates", {})
 
     update_booking_state(
         flow_manager,
-        date=date,
         specialization=spec,
         doctor_id=(chosen or {}).get("doctor_id", 1),
         available_slots=available,
         alternative_slots=alternative_slots,
     )
 
-    return None, create_gather_info_node(
-        flow_manager.state.get("caller_phone", "Unknown"),
-        target_date=date,
-        available_slots=available,
-        alternative_slots=alternative_slots,
-        context_snapshot=snapshot,
-        runtime_state=runtime,
-    )
+    return None, create_gather_time_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
 
-check_slots_func = FlowsFunctionSchema(
-    name="check_slots",
-    handler=handle_check_slots,
-    description="Check available slots for a specific date and specialization.",
-    properties={
-        "date": {"type": "string", "description": "YYYY-MM-DD"},
-        "specialization": {"type": "string"}
-    },
-    required=["date"]
+provide_specialization_func = FlowsFunctionSchema(
+    name="provide_specialization",
+    handler=handle_provide_specialization,
+    description="User provided the specialization or doctor name.",
+    properties={"specialization": {"type": "string", "description": "Specialization or doctor name"}},
+    required=["specialization"]
 )
 
-async def handle_book_appointment(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+async def handle_select_time(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
     args = args or {}
-    update_stage(get_runtime(flow_manager), "booking_recap")
-    update_booking_state(flow_manager, **args)
+    cleaned_time = args.get("time")
+    if cleaned_time and str(cleaned_time).lower() != "null":
+        update_booking_state(flow_manager, time=cleaned_time)
+    return None, create_gather_name_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
+
+select_time_func = FlowsFunctionSchema(
+    name="select_time",
+    handler=handle_select_time,
+    description="User selected a preferred time slot.",
+    properties={"time": {"type": "string", "description": "e.g. 10:30"}},
+    required=["time"]
+)
+
+async def handle_provide_patient_name(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+    args = args or {}
+    cleaned_name = args.get("patient_name")
+    if cleaned_name and str(cleaned_name).lower() != "null":
+        update_booking_state(flow_manager, patient_name=cleaned_name)
+    return None, create_confirm_phone_node(flow_manager.state.get("caller_phone", "Unknown"), get_context_snapshot(flow_manager), get_runtime(flow_manager))
+
+provide_patient_name_func = FlowsFunctionSchema(
+    name="provide_patient_name",
+    handler=handle_provide_patient_name,
+    description="User provided the patient's full name.",
+    properties={"patient_name": {"type": "string", "description": "Patient's full name"}},
+    required=["patient_name"]
+)
+
+async def handle_verify_phone_number(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+    args = args or {}
+    phone = args.get("patient_phone")
+    if phone and str(phone).lower() != "null":
+        update_booking_state(flow_manager, patient_phone=phone)
+    return None, create_gather_notes_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
+
+verify_phone_number_func = FlowsFunctionSchema(
+    name="verify_phone_number",
+    handler=handle_verify_phone_number,
+    description="Call this to confirm and save the patient's verified phone number.",
+    properties={"patient_phone": {"type": "string", "description": "Verified phone number"}},
+    required=["patient_phone"]
+)
+
+async def handle_provide_notes(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
+    args = args or {}
+    notes = args.get("notes")
+    if notes and str(notes).lower() not in ["null", "none", "no"]:
+        update_booking_state(flow_manager, notes=notes)
+    else:
+        update_booking_state(flow_manager, notes="")
     return None, create_confirm_booking_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
 
-async def handle_confirm_details(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
-    args = args or {}
-    update_stage(get_runtime(flow_manager), "booking_recap")
-    update_booking_state(flow_manager, **args)
-    return None, create_confirm_booking_node(get_context_snapshot(flow_manager), get_runtime(flow_manager))
-
-confirm_details_func = FlowsFunctionSchema(
-    name="confirm_details",
-    handler=handle_confirm_details,
-    description="Call this when all details (date, time, patient name, patient phone) have been collected.",
-    properties={
-        "time": {"type": "string"},
-        "patient_name": {"type": "string"},
-        "patient_phone": {"type": "string"},
-    },
-    required=["time", "patient_name", "patient_phone"]
+provide_notes_func = FlowsFunctionSchema(
+    name="provide_notes",
+    handler=handle_provide_notes,
+    description="User provided extra notes/comments, or said no.",
+    properties={"notes": {"type": "string", "description": "Extra comments, or empty/no if none"}},
+    required=["notes"]
 )
 
 async def handle_finalize_booking(args: FlowArgs, flow_manager: FlowManager) -> tuple[None, NodeConfig]:
@@ -381,6 +491,7 @@ async def handle_finalize_booking(args: FlowArgs, flow_manager: FlowManager) -> 
             state.get("time"),
             state.get("patient_name"),
             state.get("patient_phone"),
+            notes=state.get("notes"),
             conversation_state=summary_payload.get("conversation_state", {}),
             telemetry=summary_payload.get("telemetry", {}),
             call_summary=summary_payload.get("call_summary", ""),
@@ -431,7 +542,7 @@ GUARDRAILS:
 - If they ask for medical advice, live transfer, or have an urgent emergency, call the `urgent_case` function.
 
 ACTIONS:
-- User wants to book: call `start_booking`
+- User wants to book: call `start_booking` (you can pass the `date` and/or `specialization` if the user mentioned them).
 - User has emergency or requests live transfer/medical advice: call `urgent_case`
 - User asks about doctors: call `doctor_info`
 
@@ -458,137 +569,171 @@ Current clinic snapshot:
 {context_block}
 
 Ask if they want to book an appointment with one of them.
-IF yes -> call `start_booking`.
+IF yes -> call `start_booking` (pass date and specialization if they mentioned them).
 """
             }
         ],
         functions=[start_booking_func, urgent_case_func, end_call_func]
     )
 
-def create_gather_info_node(
-    caller_phone: str = "Unknown",
-    target_date: str = None,
-    available_slots: list = None,
-    alternative_slots: dict = None,
-    context_snapshot: dict | None = None,
-    runtime_state: dict | None = None,
-) -> NodeConfig:
-    phone_prompt = ""
-    if caller_phone and caller_phone != "Unknown":
-        last_3 = caller_phone[-3:]
-        digit_map = {'0':'zero','1':'one','2':'two','3':'three','4':'four','5':'five','6':'six','7':'seven','8':'eight','9':'nine'}
-        last_3_spoken = '-'.join([digit_map.get(d, d) for d in last_3])
-        phone_prompt = f"When asking for the patient phone number, you already have the caller's phone number ({caller_phone}). Format it clearly for TTS and ask: 'Should I take the phone number ending in {last_3_spoken} for your appointment?' If yes, use {caller_phone} as the phone number."
-
-    # Pre-calculate relative dates in python to prevent LLM reasoning errors
+def create_gather_date_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
     import datetime
     from zoneinfo import ZoneInfo
     now_ist = dt.now(ZoneInfo("Asia/Kolkata"))
-    
-    today_str = now_ist.strftime("%A, %B %d, %Y")
-    
-    tomorrow = now_ist + datetime.timedelta(days=1)
-    tomorrow_str = tomorrow.strftime("%A, %B %d, %Y")
-    
-    day_after = now_ist + datetime.timedelta(days=2)
-    day_after_str = day_after.strftime("%A, %B %d, %Y")
-    
-    # Calculate this Friday and next Friday
-    today_wd = now_ist.weekday()
-    days_to_friday = (4 - today_wd) % 7
-    this_friday = now_ist + datetime.timedelta(days=days_to_friday)
-    this_friday_str = this_friday.strftime("%A, %B %d, %Y")
-    
-    next_friday = this_friday + datetime.timedelta(days=7)
-    next_friday_str = next_friday.strftime("%A, %B %d, %Y")
-    
-    days_to_saturday = (5 - today_wd) % 7
-    this_saturday = now_ist + datetime.timedelta(days=days_to_saturday)
-    this_saturday_str = this_saturday.strftime("%A, %B %d, %Y")
-    
-    next_saturday = this_saturday + datetime.timedelta(days=7)
-    next_saturday_str = next_saturday.strftime("%A, %B %d, %Y")
-
     calendar_ref = f"""CALENDAR REFERENCE (Use this to resolve relative dates):
-- Today: {today_str}
-- Tomorrow: {tomorrow_str}
-- Day after tomorrow: {day_after_str}
-- This Friday: {this_friday_str}
-- Next Friday: {next_friday_str}
-- This Saturday: {this_saturday_str}
-- Next Saturday: {next_saturday_str}"""
-
-    slots_prompt = ""
-    if available_slots is not None:
-        if available_slots:
-            top_slots = available_slots[:4]
-            slots_prompt = f"AVAILABLE SLOTS FOR {target_date}: {', '.join(top_slots)}. Offer ONLY these specific times to the user and ask which one they prefer. Do NOT list more than 4 times."
-        else:
-            alt_text = ""
-            if alternative_slots:
-                alt_text = " ".join([f"On {d}: {', '.join(s)}." for d, s in alternative_slots.items()])
-            slots_prompt = f"Unfortunately, there are no available slots on {target_date}. However, alternative slots are: {alt_text}. Apologize and offer these alternatives to the user."
-
-    context_block = build_context_summary(context_snapshot or {})
-    intent_hint = (runtime_state or {}).get("intent_hint", "")
-
+- Today: {now_ist.strftime("%A, %B %d, %Y")}
+- Tomorrow: {(now_ist + datetime.timedelta(days=1)).strftime("%A, %B %d, %Y")}
+- Day after tomorrow: {(now_ist + datetime.timedelta(days=2)).strftime("%A, %B %d, %Y")}
+"""
     return NodeConfig(
-        name="gather_info",
+        name="gather_date",
         task_messages=[
             {
                 "role": "system",
-                "content": f"""You are collecting details for an appointment.
+                "content": f"""You are collecting the DATE for the appointment.
 {calendar_ref}
-CLINIC SNAPSHOT:
-{context_block}
-INTENT HINT:
-{intent_hint or 'None'}
-CLINIC HOURS: Monday-Friday 8:00 AM - 6:00 PM, Saturday 9:00 AM - 4:00 PM, Sunday Closed.
-REQUIRED DETAILS: Date, Specialization, Time, Patient Name, Patient Phone.
 
 VOICE RESPONSE RULES:
-- Maximum 1-2 sentences per response. Shorter is always better.
-- Ask exactly ONE question at a time. Never ask for two things at once.
-- Tone check: Never say "great question", "no problem", "no worries". Speak naturally using "Sure", "Of course", "Let me check".
-
-FLOW & SUGGESTIONS:
-1. First, establish Date and Specialization. If missing, ask for them ONE BY ONE. DO NOT suggest a specific date like Saturday unless the user has already mentioned it.
-2. Resolve Date Ambiguity: If they say an ambiguous date like "this Tuesday", verify: "Did you mean this Tuesday the [date] or next Tuesday the [date]?"
-3. Date Lookup: When the user specifies a date, resolve it using the CALENDAR REFERENCE. DO NOT quiz the user or ask math/day questions. 
-4. Check Slots: Once the date is resolved, IMMEDIATELY call the `check_slots` function to get available times for that Date. DO NOT output the tool call as text or tags like <function>. Use the native tool call interface.
-5. Once check_slots has run, look at the AVAILABLE SLOTS provided. Offer the slots and ask for their preferred Time.
-   - Closing warning: If the requested booking time is within 30 minutes of closing (e.g., 5:30 PM on weekdays or 3:30 PM on Saturdays), warn the user: "Just so you're aware, our clinic closes at [closing_time] so the doctor would need to complete the session by then."
-6. After Time, ask for Patient Name.
-   - Validation: Full name only (First + Last). If they give first name only, ask: "And your surname?"
-   - If name is complex, unusual, or easy to misspell, ask the patient to confirm the spelling.
-7. After Patient Name, ask for Patient Phone.
-8. Optional Preference Check: Ask exactly one optional question: "Will this be your first time visiting our clinic, or do you have any specific symptoms you'd like the doctor to know about in advance?"
-9. Once ALL details are gathered, call `confirm_details`.
-
-{slots_prompt}
-
-{phone_prompt}
-
-CRITICAL RULES:
-- If the user says "sorry", "again", "what", or seems confused, REPEAT the exact last question you asked.
-- When asking the patient to confirm details or verifying the phone number, format the phone number using hyphens or spaces to ensure the TTS reads it out in chunks with pauses (e.g., '9 8 7... 6 5 4... 3 2 1 0' instead of '9876543210').
-- Guardrail: If user asks for medical advice, diagnoses, treatments, or live transfer, call `urgent_case`.
+- Ask exactly ONE short question: "What date would you like to book the appointment?"
+- Resolve Date Ambiguity: ONLY if they say an ambiguous weekday like "this Tuesday", verify: "Did you mean this Tuesday the [date] or next Tuesday the [date]?"
+- Do NOT ask for verification if they say "Tomorrow" or "Today" or provide an exact date. Accept it immediately.
+- If the user asks a normal question, ANSWER their question directly. Do NOT call `provide_date` until they explicitly provide a date.
+- Once the user explicitly states a date, call `provide_date`.
 """
             }
         ],
-        functions=[check_slots_func, confirm_details_func, urgent_case_func, end_call_func, start_booking_func]
+        functions=[provide_date_func, urgent_case_func, end_call_func]
+    )
+
+def create_gather_spec_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    return NodeConfig(
+        name="gather_spec",
+        task_messages=[
+            {
+                "role": "system",
+                "content": f"""You are collecting the SPECIALIZATION for the appointment.
+
+VOICE RESPONSE RULES:
+- State exactly: "We offer General Practice, Pediatrics, and Dermatology. Which would you prefer?"
+- If the user asks a question (e.g. "What is General Practice?"), ANSWER their question directly. Do NOT call `provide_specialization`.
+- If the user provides an out of the box specialization (e.g. Neurology), politely accept it (the system will default it to General Practice internally).
+- If the user provides a specific doctor's name, accept it.
+- ONLY when they explicitly choose or state a specialization/doctor, immediately call `provide_specialization`.
+"""
+            }
+        ],
+        functions=[provide_specialization_func, urgent_case_func, end_call_func]
+    )
+
+def create_gather_time_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    state_data = (runtime_state or {}).get("booking_data", {})
+    available_slots = state_data.get("available_slots", [])
+    target_date = state_data.get("date", "")
+    
+    if available_slots:
+        slots_prompt = f"AVAILABLE SLOTS FOR {target_date}: {', '.join(available_slots[:4])}. State these times to the user directly without any intro phrasing like 'let me check', because you just checked. Just say: 'We have {', '.join(available_slots[:4])}. Which one works best for you?'"
+    else:
+        slots_prompt = f"Unfortunately, there are no available slots on {target_date}. Apologize and ask them to pick another date (call `start_booking` to restart)."
+
+    return NodeConfig(
+        name="gather_time",
+        task_messages=[
+            {
+                "role": "system",
+                "content": f"""You are collecting the TIME for the appointment.
+{slots_prompt}
+
+VOICE RESPONSE RULES:
+- Offer ONLY the specific times listed.
+- If the user selects a time NOT in the list, politely acknowledge and say it's not available, and ask them to choose from the given options.
+- If the user asks a normal question, ANSWER their question directly. Do NOT call `select_time` until they choose a valid time.
+- Once they select a valid time, immediately call `select_time`.
+"""
+            }
+        ],
+        functions=[select_time_func, start_booking_func, urgent_case_func, end_call_func]
+    )
+
+def create_gather_name_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    return NodeConfig(
+        name="gather_name",
+        task_messages=[
+            {
+                "role": "system",
+                "content": f"""You are collecting the PATIENT'S FULL NAME.
+Ask: "Can I have your full name for the booking?"
+- If the user asks a normal question, ANSWER their question directly. Do NOT call `provide_patient_name` until they provide their name.
+Once provided, call `provide_patient_name`.
+"""
+            }
+        ],
+        functions=[provide_patient_name_func, urgent_case_func, end_call_func]
+    )
+
+def create_confirm_phone_node(caller_phone: str = "Unknown", context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    if caller_phone and caller_phone != "Unknown":
+        last_3 = caller_phone[-3:]
+        digit_map = {'0':'zero','1':'one','2':'two','3':'three','4':'four','5':'five','6':'six','7':'seven','8':'eight','9':'nine'}
+        last_3_spoken = ' - '.join([digit_map.get(d, d) for d in last_3])
+        phone_prompt = f"Ask the user: 'Should I take the phone number ending in {last_3_spoken} for your appointment?'"
+    else:
+        phone_prompt = "Ask the user for their preferred contact phone number for the appointment."
+
+    return NodeConfig(
+        name="confirm_phone",
+        task_messages=[
+            {
+                "role": "system",
+                "content": f"""You are verifying the phone number.
+{phone_prompt}
+
+If the user confirms, call `verify_phone_number` with `{caller_phone}`.
+If the user wants a different number, ask for it, then call `verify_phone_number` with their number.
+- If the user asks a normal question, ANSWER their question directly. Do NOT call `verify_phone_number` until the number is confirmed or provided.
+"""
+            }
+        ],
+        functions=[verify_phone_number_func, urgent_case_func, end_call_func]
+    )
+
+def create_gather_notes_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
+    return NodeConfig(
+        name="gather_notes",
+        task_messages=[
+            {
+                "role": "system",
+                "content": f"""You are asking for EXTRA NOTES.
+Ask exactly: "Is there any extra thing which you would like the doctor to know?"
+
+If the user says No or nothing, call `provide_notes` with notes="".
+If the user provides notes, call `provide_notes` with their comments.
+- If the user asks a normal question, ANSWER their question directly. Do NOT call `provide_notes` until they answer the notes question.
+"""
+            }
+        ],
+        functions=[provide_notes_func, urgent_case_func, end_call_func]
     )
 
 def create_confirm_booking_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
     booking_data = (runtime_state or {}).get("booking_data", {})
+    phone = str(booking_data.get('patient_phone', 'Unknown'))
+    if phone != 'Unknown' and len(phone) >= 3:
+        last_3 = phone[-3:]
+        digit_map = {'0':'zero','1':'one','2':'two','3':'three','4':'four','5':'five','6':'six','7':'seven','8':'eight','9':'nine'}
+        phone_spoken = ' - '.join([digit_map.get(d, d) for d in last_3])
+    else:
+        phone_spoken = phone
+        
+    notes = booking_data.get('notes', '')
+    notes_phrase = f" with the note: '{notes}'," if notes and str(notes).lower() not in ['null', 'no', 'none'] else ""
+
     return NodeConfig(
         name="confirm_booking",
         task_messages=[
             {
                 "role": "system",
-                "content": f"""Recap the booking details to the patient.
-"Just to confirm, I have you down for an appointment on {booking_data.get('date', '[Date]')} at {normalize_time_for_tts(str(booking_data.get('time', '[Time]')))} for {booking_data.get('specialization', '[Specialization]')}, under the name {booking_data.get('patient_name', '[Patient Name]')} at {build_confirmation_phone(str(booking_data.get('patient_phone', '[Phone]')))}. Is that correct?"
-Note: When confirming the phone number, read it slowly and format it with spaces so the TTS pauses between chunks.
+                "content": f"""Recap the booking details to the patient STRICTLY in this format:
+"Just to confirm, I have you down for an appointment with {booking_data.get('doctor_id', 'our doctor')} for {booking_data.get('specialization', 'General Practice')} on {booking_data.get('date', '[Date]')} at {normalize_time_for_tts(str(booking_data.get('time', '[Time]')))}{notes_phrase} with phone number ending in {phone_spoken}. Is that correct?"
 
 IF YES -> call `finalize_booking`.
 IF NO -> call `start_booking` to modify.
@@ -598,6 +743,7 @@ IF NO -> call `start_booking` to modify.
         functions=[finalize_booking_func, start_booking_func, end_call_func]
     )
 
+
 def create_success_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
     return NodeConfig(
         name="success",
@@ -606,7 +752,11 @@ def create_success_node(context_snapshot: dict | None = None, runtime_state: dic
                 "role": "system",
                 "content": """The appointment has been booked.
 Say: "Perfect! Your appointment is successfully booked. We will send you an SMS confirmation shortly. Is there anything else I can assist you with?"
-IF NO -> call `end_call`.
+
+CRITICAL ROUTING RULES:
+1. If the user says "No", "Nothing else", "That's all", or indicates they have no more questions -> call `end_call`.
+2. If the user says "Yes" or indicates they want to ask a question -> DO NOT call `end_call`. Instead, politely ask: "Sure, what would you like to know?" and answer their question directly.
+3. If they ask about doctor timings or details -> call `doctor_info`.
 """
             }
         ],
@@ -679,7 +829,21 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
 
     stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
     tts = CartesiaTTSService(api_key=os.getenv("CARTESIA_API_KEY"), voice_id="79a125e8-cd45-4c13-8a67-188112f4dd22")
-    llm = OpenAILLMService(api_key=os.getenv("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile")
+    groq_keys = []
+    primary_key = os.getenv("GROQ_API_KEY")
+    if primary_key:
+        groq_keys.append(primary_key)
+    for i in range(2, 10):
+        key = os.getenv(f"GROQ_API_KEY_{i}")
+        if key:
+            groq_keys.append(key)
+
+    if not groq_keys:
+        logger.error("No GROQ_API_KEY found in environment variables!")
+        raise RuntimeError("No Groq API Keys loaded.")
+
+    logger.info(f"Loaded {len(groq_keys)} Groq API Keys for dynamic rotation.")
+    llm = RotatedGroqLLMService(api_keys=groq_keys, base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile")
 
     context = LLMContext(messages=[])
     context_aggregator = LLMContextAggregatorPair(context)
@@ -766,12 +930,18 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
         await task.queue_frames([TTSSpeakFrame(greeting)])
         await task.queue_frames([LLMMessagesAppendFrame(messages=[{"role": "assistant", "content": greeting}])])
 
-    @transport.event_handler("on_client_disconnected")
-    async def on_client_disconnected(transport, client):
+    ingested = False
+
+    async def perform_ingestion():
+        nonlocal ingested
+        if ingested:
+            return
+        ingested = True
+        
         transcript_processor.stop_monitoring()
         call_info["end_time"] = dt.utcnow().isoformat() + "Z"
         update_stage(runtime_state, "ended")
-        logger.info("Twilio client disconnected. Sending transcript to backend...")
+        logger.info("Sending transcript to backend...")
 
         transcript = transcript_processor.get_transcript()
         flow_manager.state["_transcript"] = transcript
@@ -797,7 +967,18 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
             logger.info("Backend ingest completed")
         except Exception as e:
             logger.error(f"Failed to ingest to backend: {e}")
-        await task.cancel()
+        try:
+            await task.cancel()
+        except Exception:
+            pass
+
+    @transport.event_handler("on_client_disconnected")
+    async def on_client_disconnected(transport, client):
+        logger.info("Twilio client disconnected event received.")
+        await perform_ingestion()
 
     runner = PipelineRunner(handle_sigint=False, force_gc=True)
-    await runner.run(task)
+    try:
+        await runner.run(task)
+    finally:
+        await perform_ingestion()
