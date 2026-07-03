@@ -45,6 +45,9 @@ export class JwtValidationInterceptor implements NestInterceptor {
       '/api/user/register',
       '/api/health',
       '/api/calls/ingest',
+      '/api/appointments/context',
+      '/api/appointments/doctors',
+      '/api/appointments/slots',
     ];
 
     // Exact match for root endpoint

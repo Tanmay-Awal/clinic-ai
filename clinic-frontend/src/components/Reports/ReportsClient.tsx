@@ -26,14 +26,14 @@ export default function ReportsClient() {
         {/* Bookings Report Card */}
         <Card
           className="group relative cursor-pointer overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-600/10 border-border/50 bg-gradient-to-b from-card to-card/50"
-          onClick={() => setSelectedReport('bookings')}
+          onClick={() => setSelectedReport('appointments')}
         >
           <div className="absolute inset-0 bg-gradient-to-br from-amber-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           <CardHeader>
             <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-amber-600/20 to-amber-700/20 shadow-inner">
               <Bed className="h-7 w-7 text-amber-600" />
             </div>
-            <CardTitle className="text-xl">Bookings Data</CardTitle>
+            <CardTitle className="text-xl">Appointments Data</CardTitle>
             <CardDescription className="pt-2 leading-relaxed">
               Detailed logs of all reservations captured through the AI, complete with party sizes, dates, and locations.
             </CardDescription>
@@ -46,28 +46,7 @@ export default function ReportsClient() {
           </CardContent>
         </Card>
 
-        {/* Feedback Report Card */}
-        <Card
-          className="group relative cursor-pointer overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-600/10 border-border/50 bg-gradient-to-b from-card to-card/50"
-          onClick={() => setSelectedReport('feedback')}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <CardHeader>
-            <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600/20 to-emerald-700/20 shadow-inner">
-              <MessageSquare className="h-7 w-7 text-emerald-600" />
-            </div>
-            <CardTitle className="text-xl">Feedback Logs</CardTitle>
-            <CardDescription className="pt-2 leading-relaxed">
-              A comprehensive dataset of customer feedback, ratings, and sentiments collected via post-visit SMS.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center text-sm font-semibold text-emerald-600">
-              Build Report
-              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </div>
-          </CardContent>
-        </Card>
+
 
         {/* Actions Report Card */}
         <Card
@@ -92,28 +71,7 @@ export default function ReportsClient() {
           </CardContent>
         </Card>
 
-        {/* Coupons Report Card */}
-        <Card
-          className="group relative cursor-pointer overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-violet-600/10 border-border/50 bg-gradient-to-b from-card to-card/50"
-          onClick={() => setSelectedReport('coupons')}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <CardHeader>
-            <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600/20 to-violet-700/20 shadow-inner">
-              <Ticket className="h-7 w-7 text-violet-600" />
-            </div>
-            <CardTitle className="text-xl">Coupons Report</CardTitle>
-            <CardDescription className="pt-2 leading-relaxed">
-              Track all issued feedback coupons, redemption status, validity periods, and customer details.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center text-sm font-semibold text-violet-600">
-              Build Report
-              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </div>
-          </CardContent>
-        </Card>
+
       </div>
     </div>
   );

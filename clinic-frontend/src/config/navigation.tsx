@@ -40,12 +40,9 @@ export const NAVIGATION_ITEMS = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Calls', href: '/calls', icon: Phone },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle, requiresWhatsappToken: true },
-  { name: 'Chatbot', href: '/chatbot', icon: Bot },
   { name: 'Actions', href: '/actions', icon: ClipboardList },
   { name: 'Insights', href: '/insights', icon: TrendingUp },
-  { name: 'Outbound', href: '/outbound', icon: PhoneOutgoing },
   { name: 'Reports', href: '/reports', icon: FileBarChart },
-  { name: 'Netra AI', href: '/ai-assistant', icon: SparkleIcon, isAi: true, description: 'Coming Soon' },
   { name: 'Admin', href: '/admin', icon: Settings, isAdminOnly: true },
   { name: 'Profile', href: '/profile', icon: User, isProfile: true },
 ];

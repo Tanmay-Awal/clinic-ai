@@ -17,13 +17,19 @@ interface OutcomeBarProps {
 // Hardcoded color map — Tailwind JIT cannot detect dynamic class names from API responses.
 // Always use inline style with hex values for guaranteed rendering.
 const SEGMENT_COLORS: Record<string, string> = {
+    'Appointment Booked': '#4ade80', // green
+    'Enquiry Handled': '#38bdf8', // blue
+    'Action Required': '#facc15', // yellow
+    'Urgent Case': '#ef4444', // red
+    'General Assistance': '#2dd4bf', // teal
+    'Callback Arranged': '#f59e0b', // orange
+    'Booking Cancelled': '#fb923c', // orange-red
+    'Reschedule Requested': '#c084fc', // purple
+    // Legacy/fallback colors
     'Booking Secured': '#4ade80',
-    'Enquiry Handled': '#38bdf8',
     'Large Party Bookings': '#22d3ee',
     'Promotional / Offer': '#facc15',
     'Transferred to Staff': '#f59e0b',
-    'Booking Cancelled': '#fb923c',
-    'General Assistance': '#2dd4bf',
     'Calls After Hours': '#a78bfa',
     'Successful Upsells': '#f472b6',
 };

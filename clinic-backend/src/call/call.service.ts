@@ -21,8 +21,35 @@ export class CallService {
   ) {}
 
   async ingestCall(payload: any) {
-    const { call_id, caller_phone, start_time, end_time, transcript, recording_url } = payload;
+    const {
+      call_id,
+      caller_phone,
+      start_time,
+      end_time,
+      transcript,
+      recording_url,
+      call_summary,
+      conversation_state,
+      telemetry,
+      intent,
+      context_snapshot,
+      booking_result,
+      fallback_reason,
+      call_status,
+      needs_ai_processing,
+      appointment_id,
+      to_number,
+    } = payload || {};
     
+    // Determine the actual client number
+    // Bot uses a +1 number, so if caller_phone starts with +1, the client is to_number
+    let actual_caller_phone = caller_phone;
+    if (caller_phone && caller_phone.startsWith('+1') && to_number) {
+      actual_caller_phone = to_number;
+    } else if (to_number && to_number.startsWith('+1') && caller_phone) {
+      actual_caller_phone = caller_phone;
+    }
+
     // Calculate duration in seconds
     let duration_seconds = 0;
     if (start_time && end_time) {
@@ -33,13 +60,28 @@ export class CallService {
 
     const newCall = this.callRepository.create({
       call_id,
-      from_number: caller_phone,
+      from_number: actual_caller_phone,
+      to_number: to_number,
       call_start_time: start_time ? new Date(start_time) : new Date(),
       call_end_time: end_time ? new Date(end_time) : new Date(),
       call_duration_ms: duration_seconds * 1000,
       transcript,
       recording_url,
+      call_source: 'pipecat',
       call_direction: 'inbound',
+      call_status: call_status || 'ended',
+      needs_ai_processing: needs_ai_processing !== undefined ? needs_ai_processing : true,
+      appointment_created: Boolean(appointment_id || booking_result?.appointment_id),
+      appointment_id: appointment_id || booking_result?.appointment_id || null,
+      tool_calls_made: {
+        call_summary: call_summary || null,
+        conversation_state: conversation_state || null,
+        telemetry: telemetry || null,
+        intent: intent || null,
+        context_snapshot: context_snapshot || null,
+        booking_result: booking_result || null,
+        fallback_reason: fallback_reason || null,
+      },
     });
 
     const savedCall = await this.callRepository.save(newCall);
@@ -130,7 +172,7 @@ export class CallService {
         sub_category: call.sub_category,
         key_insights: [], // Still missing from entity, leave empty array for now
       },
-      linked_actions: [],
+      linked_actions: await this.actionsService.getActionsByCallId(id),
     };
   }
 

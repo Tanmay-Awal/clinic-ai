@@ -37,8 +37,9 @@ export class AiService {
 
     try {
       const call = await this.callRepository.findOne({ where: { id: callId } });
-      if (!call || !call.transcript) {
-        this.logger.warn(`Call ${callId} not found or has no transcript`);
+      const botSummary = (call?.tool_calls_made as any)?.call_summary;
+      if (!call || (!call.transcript && !botSummary)) {
+        this.logger.warn(`Call ${callId} not found or has no transcript/summary`);
         return false;
       }
 
@@ -52,15 +53,29 @@ export class AiService {
           "key_insights": ["Insight 1", "Insight 2"],
           "actions_required": [
             {
-              "type": "Follow-up Call" | "Prescription Refill" | "Manual Review",
-              "description": "What needs to be done",
+              "type": "follow_up" | "prescription_refill" | "manual_review" | "urgent_case" | "callback" | "complaint" | "reschedule_request" | "cancellation_request" | "other",
+              "description": "Specific details on exactly what happened and why this action is needed (e.g. 'Patient John needs to reschedule his 3PM appointment to next Tuesday' instead of 'Review transcript')",
               "priority": "High" | "Medium" | "Low"
             }
           ]
         }
 
+        CRITICAL RULES FOR "actions_required":
+        DO NOT create an action if:
+        1. An appointment is successfully booked.
+        2. The call has no meaningful talk (e.g. hang up, silence).
+        3. The user just asks normal questions (e.g. doctor's background, hospital info, faq) and no follow-up is promised.
+        
+        YOU MUST ONLY CREATE AN ACTION IF:
+        1. The user or bot explicitly says "I'll let the team know", "the team will call you back", "I have to check with the team", etc.
+        2. The user requests to transfer the call to the human team.
+        3. It is an Urgent Case (Emergency).
+        If none of these 3 conditions are met, "actions_required" MUST be an empty array [].
+        Bot summary (if available):
+        ${botSummary || 'None'}
+
         Transcript:
-        ${JSON.stringify(call.transcript)}
+        ${JSON.stringify(call.transcript || [])}
       `;
 
       const chatCompletion = await this.groq.chat.completions.create({
@@ -83,6 +98,7 @@ export class AiService {
 
       // We will create a CallAnalysis entity here to store the summary and sentiment.
       // call.analyzed_at = new Date();
+      call.category = parsedData.category || 'Other';
       await this.callRepository.save(call);
 
       const callAnalysis = this.callAnalysisRepository.create({
@@ -103,7 +119,7 @@ export class AiService {
           const action = this.actionRepository.create({
             call_id: call.id,
             caller_phone: call.from_number,
-            type: actionReq.type || 'Review',
+            type: actionReq.type || 'misc',
             description: actionReq.description,
             priority: actionReq.priority || 'Medium',
             status: 'Open',

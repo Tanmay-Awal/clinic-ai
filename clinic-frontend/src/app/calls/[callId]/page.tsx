@@ -402,18 +402,18 @@ export default function CallDetail({ params }: { params: Promise<{ callId: strin
             {/* Linked Actions */}
             {(() => {
               const actions = (call.linked_actions && call.linked_actions.length > 0)
-                ? call.linked_actions.map((la) => ({
+                ? call.linked_actions.map((la: any) => ({
                     id: la.id,
                     status: la.status as ActionStatus,
-                    label: la.request_type.replace(/_/g, ' '),
+                    label: (la.type || '').replace(/_/g, ' '),
                     priority: la.priority as ActionPriority,
                     meta: `Created ${formatDateInTimezone(parseTimestampAsUtc(la.created_at), { day: '2-digit', month: 'short', year: 'numeric' }, displayTimezone)}`,
                   }))
-                : callActionsData?.actions.length
-                  ? callActionsData.actions.map((a) => ({
+                : callActionsData?.actions?.length
+                  ? callActionsData.actions.map((a: any) => ({
                       id: a.id,
                       status: a.status,
-                      label: ACTION_REQUEST_TYPE_LABELS[a.request_type as ActionRequestType] || a.request_type_label,
+                      label: (a.type || '').replace(/_/g, ' '),
                       priority: a.priority,
                       meta: undefined,
                     }))

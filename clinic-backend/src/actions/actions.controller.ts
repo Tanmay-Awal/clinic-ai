@@ -17,6 +17,11 @@ export class ActionsController {
     return this.actionsService.getActions(body);
   }
 
+  @Post('stats')
+  async getStats(@Body() body: any) {
+    return this.actionsService.getStats(body);
+  }
+
   @Get(':id')
   async getActionById(@Param('id') id: string) {
     return this.actionsService.getActionById(parseInt(id, 10));

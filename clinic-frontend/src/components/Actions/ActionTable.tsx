@@ -563,29 +563,14 @@ export function ActionTable({ dateRange, startDate, endDate, onRefreshNeeded }: 
                                 {/* Row 2: Phone */}
                                 <div className="flex items-center gap-2 mb-2.5">
                                     <span className="text-xs text-muted-foreground font-mono">
-                                        {unmaskedNumbers[action.id] || action.phone_number || 'N/A'}
+                                        {unmaskedNumbers[action.id] || action.phone_number || (action as any).caller_phone || 'N/A'}
                                     </span>
-                                    {action.phone_number && action.phone_number !== 'N/A' && (
-                                        <button
-                                            className="flex items-center justify-center min-h-[44px] min-w-[44px] -m-2 text-muted-foreground hover:text-primary transition-colors"
-                                            onClick={(e) => handleToggleUnmask(e, action.id)}
-                                            disabled={unmaskingLoading[action.id]}
-                                        >
-                                            {unmaskingLoading[action.id] ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : unmaskedNumbers[action.id] ? (
-                                                <EyeOff className="h-4 w-4" />
-                                            ) : (
-                                                <Eye className="h-4 w-4" />
-                                            )}
-                                        </button>
-                                    )}
                                 </div>
 
                                 {/* Row 3: Type + Status */}
                                 <div className="flex items-center gap-2 mb-2.5">
                                     <Badge variant="outline" className="text-[10px] px-2 py-0.5">
-                                        {ACTION_REQUEST_TYPE_LABELS[action.request_type as ActionRequestType] || action.request_type_label}
+                                        {ACTION_REQUEST_TYPE_LABELS[((action as any).type || '').toLowerCase()] || ACTION_REQUEST_TYPE_LABELS[(action.request_type || '').toLowerCase() as ActionRequestType] || action.request_type_label || (action as any).type || '-'}
                                     </Badge>
                                     <div onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenu>
@@ -604,7 +589,7 @@ export function ActionTable({ dateRange, startDate, endDate, onRefreshNeeded }: 
                                                         key={s}
                                                         className={cn(
                                                             "cursor-pointer text-sm py-2 px-3",
-                                                            action.status === s && "bg-secondary/50 font-medium"
+                                                            action.status?.toLowerCase() === s && "bg-secondary/50 font-medium"
                                                         )}
                                                         onClick={() => {
                                                             if (s === 'resolved') {
@@ -700,30 +685,13 @@ export function ActionTable({ dateRange, startDate, endDate, onRefreshNeeded }: 
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center gap-2 group/phone">
                                                     <span className="text-sm text-muted-foreground font-mono">
-                                                        {unmaskedNumbers[action.id] || action.phone_number || 'N/A'}
+                                                        {unmaskedNumbers[action.id] || action.phone_number || (action as any).caller_phone || 'N/A'}
                                                     </span>
-                                                    {action.phone_number && action.phone_number !== 'N/A' && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-6 w-6 hover:bg-secondary transition-opacity"
-                                                            onClick={(e) => handleToggleUnmask(e, action.id)}
-                                                            disabled={unmaskingLoading[action.id]}
-                                                        >
-                                                            {unmaskingLoading[action.id] ? (
-                                                                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                                            ) : unmaskedNumbers[action.id] ? (
-                                                                <EyeOff className="h-3 w-3 text-muted-foreground" />
-                                                            ) : (
-                                                                <Eye className="h-3 w-3 text-muted-foreground" />
-                                                            )}
-                                                        </Button>
-                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-4">
                                                 <Badge variant="outline" className="text-xs">
-                                                    {ACTION_REQUEST_TYPE_LABELS[action.request_type as ActionRequestType] || action.request_type_label}
+                                                    {ACTION_REQUEST_TYPE_LABELS[((action as any).type || '').toLowerCase()] || ACTION_REQUEST_TYPE_LABELS[(action.request_type || '').toLowerCase() as ActionRequestType] || action.request_type_label || (action as any).type || '-'}
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-4">
@@ -746,7 +714,7 @@ export function ActionTable({ dateRange, startDate, endDate, onRefreshNeeded }: 
                                                                 key={s}
                                                                 className={cn(
                                                                     "cursor-pointer text-sm py-2 px-3",
-                                                                    action.status === s && "bg-secondary/50 font-medium"
+                                                                    action.status?.toLowerCase() === s && "bg-secondary/50 font-medium"
                                                                 )}
                                                                 onClick={() => {
                                                                     if (s === 'resolved') {
