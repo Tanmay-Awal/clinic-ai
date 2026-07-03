@@ -40,10 +40,6 @@ export class DashboardService {
     const actionCallIds = new Set(callsWithActions.map(a => Number(a.call_id)));
 
     let urgent = 0;
-    let actionReq = 0;
-    let booked = 0;
-    let cancelled = 0;
-    let rescheduled = 0;
     let inquiry = 0;
     let general = 0;
 
@@ -52,19 +48,24 @@ export class DashboardService {
       if (cat === 'Emergency' || call.transfer_to_human) {
         urgent++;
       } else if (actionCallIds.has(Number(call.id))) {
-        actionReq++;
+        // Skip, handled independently
       } else if (call.appointment_created) {
-        booked++;
+        // Skip, handled independently
       } else if (cat === 'Cancellation') {
-        cancelled++;
+        // Skip, handled independently
       } else if (cat === 'Rescheduling') {
-        rescheduled++;
+        // Skip, handled independently
       } else if (cat === 'Inquiry') {
         inquiry++;
       } else {
         general++;
       }
     }
+
+    const actionReq = await this.actionRepository.count({ where: { status: 'Open' } });
+    const booked = await this.appointmentRepository.count({ where: { status: 'booked' } });
+    const cancelled = await this.appointmentRepository.count({ where: { status: 'cancelled' } });
+    const rescheduled = await this.appointmentRepository.count({ where: { status: 'rescheduled' } });
 
     const outcomeBarDataArray = [
       { name: 'Urgent Case', count: urgent },
@@ -153,7 +154,7 @@ export class DashboardService {
       })(),
       conversionFunnel: [
         { stage: 'Calls Handled', count: totalCalls, pct: 100 },
-        { stage: 'Action Required', count: await this.actionRepository.count(), pct: 50 },
+        { stage: 'Action Required', count: actionReq, pct: 50 },
         { stage: 'Appointments', count: totalReservations, pct: conversionRate },
       ],
       trendingTopics: [

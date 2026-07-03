@@ -59,8 +59,27 @@ async def book_appointment(
 
 
 async def ingest_call(payload: Dict[str, Any]):
+    """Ingest call metadata after call ends."""
     logger.info("Tool called: ingest_call")
     return await _CLIENT.ingest_call(payload)
+
+
+async def lookup_appointments(phone: str):
+    """Lookup existing appointments by phone number."""
+    logger.info(f"Tool called: lookup_appointments for {phone}")
+    return await _CLIENT.lookup_appointments(phone)
+
+
+async def cancel_appointment(appointment_id: int):
+    """Cancel an existing appointment."""
+    logger.info(f"Tool called: cancel_appointment for id {appointment_id}")
+    return await _CLIENT.update_appointment(appointment_id, {"status": "cancelled"})
+
+
+async def reschedule_appointment(appointment_id: int, date: str, time: str):
+    """Reschedule an existing appointment to a new date and time."""
+    logger.info(f"Tool called: reschedule_appointment for id {appointment_id} to {date} {time}")
+    return await _CLIENT.update_appointment(appointment_id, {"date": date, "time": time, "status": "rescheduled"})
 
 
 def setup_tools(llm):
@@ -69,3 +88,7 @@ def setup_tools(llm):
     llm.register_function("get_available_slots", get_available_slots)
     llm.register_function("book_appointment", book_appointment)
     llm.register_function("ingest_call", ingest_call)
+    llm.register_function("lookup_appointments", lookup_appointments)
+    llm.register_function("cancel_appointment", cancel_appointment)
+    llm.register_function("reschedule_appointment", reschedule_appointment)
+

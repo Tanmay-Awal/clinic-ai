@@ -110,7 +110,7 @@ export class Call {
   @Column({ type: 'bigint', nullable: true })
   appointment_id: number;
 
-  @ManyToOne(() => Appointment, { nullable: true })
+  @ManyToOne(() => Appointment, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'appointment_id' })
   appointment: Appointment;
 

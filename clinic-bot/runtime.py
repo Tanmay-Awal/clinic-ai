@@ -129,8 +129,9 @@ def normalize_time_for_tts(time_value: str) -> str:
     value = (time_value or "").strip()
     if not value:
         return value
-    if re.match(r"^\d{2}:\d{2}$", value):
-        hour, minute = value.split(":")
+    m = re.match(r"^(\d{2}):(\d{2})(?::(\d{2}))?$", value)
+    if m:
+        hour, minute = m.group(1), m.group(2)
         hour_int = int(hour)
         suffix = "a.m." if hour_int < 12 else "p.m."
         hour_12 = hour_int % 12 or 12
@@ -225,7 +226,7 @@ def render_clinic_context(snapshot: Dict[str, Any]) -> str:
         
     lines = [
         f"CLINIC NAME: {snapshot.get('clinic_name', 'City Health Clinic')}",
-        "ADDRESS: 123 Wellness Avenue, Medical District, New York, NY 10001",
+        "ADDRESS: 123 Wellness Avenue, Medical District, New York,10001",
         f"TIMEZONE: {snapshot.get('timezone', 'UTC')}",
         "",
         "HOSPITAL FAQ & REVIEWS:",
@@ -406,6 +407,22 @@ class ClinicBackendClient:
         }
         self._write_cache(cache_key, fallback)
         return fallback
+
+    async def lookup_appointments(self, phone: str) -> List[Dict[str, Any]]:
+        try:
+            response = await self._request("GET", f"/appointments/lookup/{phone}", retries=1)
+            data = response.get("data", response)
+            if isinstance(data, list):
+                return data
+            return []
+        except Exception as exc:
+            logger.error(f"Failed to lookup appointments for {phone}: {exc}")
+            return []
+
+    async def update_appointment(self, appointment_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+        response = await self._request("PUT", f"/appointments/{appointment_id}", json_body=payload, retries=1)
+        data = response.get("data", response)
+        return {"success": True, "raw": data}
 
     async def book_appointment(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         response = await self._request("POST", "/appointments", json_body=payload, retries=1)

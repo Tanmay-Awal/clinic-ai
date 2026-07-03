@@ -42,6 +42,11 @@ export class AppointmentsController {
     return this.appointmentsService.updateDoctor(parseInt(id, 10), data);
   }
 
+  @Get('lookup/:phone')
+  getAppointmentsByPhone(@Param('phone') phone: string) {
+    return this.appointmentsService.getAppointmentsByPhone(phone);
+  }
+
   @Get()
   getAppointments() {
     return this.appointmentsService.getAppointments();

@@ -60,8 +60,17 @@ export class AiService {
           ]
         }
 
-        IMPORTANT: Do NOT create an action for successfully confirmed or booked appointments. Actions should ONLY be created when a human staff member needs to do something (e.g., call the patient back, manually review a request, handle a complaint, or process a cancellation/reschedule).
-
+        CRITICAL RULES FOR "actions_required":
+        DO NOT create an action if:
+        1. An appointment is successfully booked.
+        2. The call has no meaningful talk (e.g. hang up, silence).
+        3. The user just asks normal questions (e.g. doctor's background, hospital info, faq) and no follow-up is promised.
+        
+        YOU MUST ONLY CREATE AN ACTION IF:
+        1. The user or bot explicitly says "I'll let the team know", "the team will call you back", "I have to check with the team", etc.
+        2. The user requests to transfer the call to the human team.
+        3. It is an Urgent Case (Emergency).
+        If none of these 3 conditions are met, "actions_required" MUST be an empty array [].
         Bot summary (if available):
         ${botSummary || 'None'}
 

@@ -118,6 +118,22 @@ export class AppointmentsService {
     return this.appointmentRepository.find({ relations: ['doctor'] });
   }
 
+  async getAppointmentsByPhone(phone: string): Promise<Appointment[]> {
+    // Normalize user's input by removing non-digits and keeping the last 10 digits
+    const digitsOnly = phone.replace(/\D/g, '');
+    const last10 = digitsOnly.slice(-10);
+    
+    // Use Postgres regexp_replace to strip all non-digits from the stored DB column
+    // This ensures that +1 (555) 123-4567 matches 5551234567 without any failure chance.
+    return this.appointmentRepository.createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.doctor', 'doctor')
+      .where("regexp_replace(appointment.patient_phone, '\\D', '', 'g') LIKE :phone", { phone: `%${last10}%` })
+      .andWhere("appointment.status IN (:...statuses)", { statuses: ['booked', 'rescheduled'] })
+      .orderBy('appointment.date', 'ASC')
+      .addOrderBy('appointment.time', 'ASC')
+      .getMany();
+  }
+
   async getAppointmentById(id: number): Promise<Appointment> {
     const apt = await this.appointmentRepository.findOne({
       where: { id },
