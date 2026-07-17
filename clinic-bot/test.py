@@ -12,7 +12,7 @@ print(f"Loaded SID: {account_sid}")
 print(f"Loaded Token (masked): ...{auth_token[-8:] if auth_token else 'None'}")
 
 # REPLACE THIS WITH YOUR RUNNING NGROK URL (e.g., https://abc.ngrok-free.app)
-NGROK_URL = "https://4a1c-2a09-bac5-3e0c-7eb-00-ca-1c4.ngrok-free.app" 
+NGROK_URL = "https://4d23-2401-4900-890e-3f2d-8cf1-db11-d0fa-f527.ngrok-free.app" 
 
 if not account_sid or not auth_token:
     print("Error: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set in .env")

@@ -28,8 +28,9 @@ export default function Admin() {
   const [users, setUsers] = useState<OrgUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
-  // Check if current user is admin based on real auth user
-  const isAdmin = checkIsAdmin(user);
+  // Check if current user is admin based on real auth user (and not the public demo user when hosted)
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const isAdmin = checkIsAdmin(user) && (isLocalhost || user?.email !== 'test@gmail.com');
 
   // Detect if there is a persisted auth token before Zustand rehydrates
   const hasStoredAuthToken = useMemo(() => {

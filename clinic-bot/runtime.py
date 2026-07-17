@@ -10,7 +10,7 @@ from loguru import logger
 
 
 DEFAULT_BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3001/api")
-DEFAULT_CACHE_TTL_SECONDS = int(os.getenv("BOT_CONTEXT_CACHE_TTL", "45"))
+DEFAULT_CACHE_TTL_SECONDS = int(os.getenv("BOT_CONTEXT_CACHE_TTL", "3600"))
 
 
 @dataclass

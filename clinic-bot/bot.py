@@ -50,8 +50,11 @@ logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3001/api")
-
 CLINIC_NAME = "City Health Clinic"
+
+# Initialize VAD analyzer globally to load Silero model at server startup
+global_vad_analyzer = SileroVADAnalyzer(params=VADParams(start_secs=0.08, stop_secs=0.18, confidence=0.5))
+
 
 class RotatedGroqLLMService(OpenAILLMService):
     def __init__(self, api_keys: list, *args, **kwargs):
@@ -117,8 +120,26 @@ class RotatedGroqLLMService(OpenAILLMService):
             "content": consolidated_content
         }
         
+        # Clean up other messages to strip historical tool calls and responses.
+        # This prevents OpenAI/Groq API validation errors when a tool is no longer registered in the current node.
+        cleaned_other_msgs = []
+        for msg in other_msgs:
+            role = msg.get("role")
+            if role in ["tool", "developer", "function"]:
+                continue
+            
+            new_msg = dict(msg)
+            if role == "assistant" and "tool_calls" in new_msg:
+                new_msg = dict(new_msg)
+                del new_msg["tool_calls"]
+                # If the assistant message only contained tool_calls and had no content, skip it
+                if not new_msg.get("content"):
+                    continue
+            
+            cleaned_other_msgs.append(new_msg)
+            
         # Re-assign the optimized list to context messages before calling API
-        context.set_messages([consolidated_system_msg] + other_msgs)
+        context.set_messages([consolidated_system_msg] + cleaned_other_msgs)
 
         max_retries = len(self.api_keys)
         try:
@@ -148,8 +169,87 @@ class RotatedGroqLLMService(OpenAILLMService):
                     else:
                         raise e
         finally:
-            # Restore original messages
             context.set_messages(original_messages)
+
+# Initialize Groq Keys and LLM Service globally at server startup
+_groq_keys = []
+_primary_key = os.getenv("GROQ_API_KEY")
+if _primary_key:
+    _groq_keys.append(_primary_key)
+for i in range(2, 10):
+    _key = os.getenv(f"GROQ_API_KEY_{i}")
+    if _key:
+        _groq_keys.append(_key)
+
+if not _groq_keys:
+    logger.error("No GROQ_API_KEY found in environment variables!")
+else:
+    logger.info(f"Loaded {len(_groq_keys)} Groq API Keys globally for dynamic rotation.")
+
+global_llm = RotatedGroqLLMService(
+    api_keys=_groq_keys,
+    base_url="https://api.groq.com/openai/v1",
+    settings=RotatedGroqLLMService.Settings(model="llama-3.3-70b-versatile")
+)
+
+# Pre-load Local Smart Turn detector ONNX model at server startup
+try:
+    from pipecat.audio.turn.smart_turn.local_smart_turn_v3 import LocalSmartTurnAnalyzerV3
+    logger.info("Pre-loading Local Smart Turn detector model...")
+    _ = LocalSmartTurnAnalyzerV3()
+except Exception as e:
+    logger.warning(f"Could not pre-load Local Smart Turn: {e}")
+
+
+PRE_RENDERED_GREETINGS = {}
+
+async def pre_render_all_greetings():
+    import httpx
+    global PRE_RENDERED_GREETINGS
+    api_key = os.getenv("CARTESIA_API_KEY")
+    if not api_key:
+        logger.error("No CARTESIA_API_KEY found, cannot pre-render greetings.")
+        return
+        
+    greetings = {
+        "Morning": f"Good Morning, this is {CLINIC_NAME}. I'm Emily. How can I help you today?",
+        "Afternoon": f"Good Afternoon, this is {CLINIC_NAME}. I'm Emily. How can I help you today?",
+        "Evening": f"Good Evening, this is {CLINIC_NAME}. I'm Emily. How can I help you today?",
+    }
+    
+    url = "https://api.cartesia.ai/tts/bytes"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Cartesia-Version": "2024-06-10",
+        "Content-Type": "application/json",
+    }
+    
+    for key, text in greetings.items():
+        payload = {
+            "model_id": "sonic-3.5",
+            "transcript": text,
+            "voice": {
+                "mode": "id",
+                "id": "79a125e8-cd45-4c13-8a67-188112f4dd22"
+            },
+            "output_format": {
+                "container": "raw",
+                "encoding": "pcm_s16le",
+                "sample_rate": 16000
+            }
+        }
+        try:
+            logger.info(f"Pre-rendering {key} greeting...")
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                if response.status_code == 200:
+                    PRE_RENDERED_GREETINGS[key] = response.content
+                    logger.info(f"Successfully pre-rendered {key} greeting ({len(response.content)} bytes).")
+                else:
+                    logger.error(f"Failed to pre-render {key} greeting: {response.text}")
+        except Exception as e:
+            logger.error(f"Error pre-rendering {key} greeting: {e}")
+
 
 class LocalAudioRecorder(FrameProcessor):
     def __init__(self, call_id: str):
@@ -379,7 +479,7 @@ async def handle_start_booking(args: FlowArgs, flow_manager: FlowManager) -> tup
 start_booking_func = FlowsFunctionSchema(
     name="start_booking",
     handler=handle_start_booking,
-    description="User indicates intent to book an appointment.",
+    description="Call this ONLY when the user explicitly confirms they want to book or schedule a new appointment. DO NOT call this if the user is just saying hello, greeting you, or stating their name (e.g., 'My name is Lucy' or 'This is Lucy').",
     properties={},
     required=[]
 )
@@ -571,7 +671,7 @@ def create_initial_node(context_snapshot: dict | None = None, runtime_state: dic
         task_messages=[
             {
                 "role": "system",
-                "content": f"""You are Saloni, receptionist at {CLINIC_NAME}.
+                "content": f"""You are Emily, receptionist at {CLINIC_NAME}.
 {instruction}
 
 VOICE RESPONSE RULES (CRITICAL):
@@ -585,7 +685,7 @@ GUARDRAILS:
 - If they ask for medical advice, live transfer, or have an urgent emergency, call the `urgent_case` function.
 
 ACTIONS:
-- User EXPLICITLY CONFIRMS they want to book an appointment: call `start_booking` (DO NOT call this if you are merely asking them if they want to book).
+- User EXPLICITLY CONFIRMS they want to book a new appointment (e.g., 'I want to book an appointment', 'Can you schedule a checkup?'): call `start_booking`. DO NOT call this if the user is merely introducing themselves, stating their name (e.g. 'This is Lucy'), or saying hello.
 - User wants to check, modify, or cancel an existing appointment: call `start_appointment_lookup`.
 - User has emergency or requests live transfer/medical advice: call `urgent_case`
 - User asks about doctors: call `doctor_info`
@@ -598,7 +698,8 @@ INTENT HINT:
 """
             }
         ],
-        functions=[start_booking_func, urgent_case_func, doctor_info_func, start_appointment_lookup_func, end_call_func]
+        functions=[start_booking_func, urgent_case_func, doctor_info_func, start_appointment_lookup_func, end_call_func],
+        respond_immediately=False
     )
 
 def create_doctor_info_node(context_snapshot: dict | None = None, runtime_state: dict | None = None) -> NodeConfig:
@@ -784,7 +885,7 @@ IF NO -> call `start_booking` to modify.
 """
             }
         ],
-        functions=[finalize_booking_func, start_booking_func, end_call_func, doctor_info_func]
+        functions=[finalize_booking_func, start_booking_func, end_call_func, doctor_info_func, urgent_case_func]
     )
 
 
@@ -1155,7 +1256,7 @@ def create_confirm_reschedule_node(context_snapshot: dict | None = None, runtime
                 "content": f"The requested new slot is available. Ask the user to confirm: 'Are you sure you want to update your appointment to {date} at {time}?'\nIf they say yes, call confirm_reschedule.\nIf they say no, call start_reschedule again to pick a different time."
             }
         ],
-        functions=[confirm_reschedule_func, start_reschedule_func, end_call_func, doctor_info_func]
+        functions=[confirm_reschedule_func, start_reschedule_func, end_call_func, doctor_info_func, urgent_case_func]
     )
 
 async def handle_confirm_reschedule(args, flow_manager):
@@ -1196,28 +1297,17 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
             audio_in_enabled=True,
             audio_out_enabled=True,
             add_wav_header=False,
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(start_secs=0.08, stop_secs=0.18, confidence=0.5)),
+            vad_analyzer=global_vad_analyzer,
             serializer=serializer,
         ),
     )
 
     stt = DeepgramSTTService(api_key=os.getenv("DEEPGRAM_API_KEY"))
-    tts = CartesiaTTSService(api_key=os.getenv("CARTESIA_API_KEY"), voice_id="79a125e8-cd45-4c13-8a67-188112f4dd22")
-    groq_keys = []
-    primary_key = os.getenv("GROQ_API_KEY")
-    if primary_key:
-        groq_keys.append(primary_key)
-    for i in range(2, 10):
-        key = os.getenv(f"GROQ_API_KEY_{i}")
-        if key:
-            groq_keys.append(key)
-
-    if not groq_keys:
-        logger.error("No GROQ_API_KEY found in environment variables!")
-        raise RuntimeError("No Groq API Keys loaded.")
-
-    logger.info(f"Loaded {len(groq_keys)} Groq API Keys for dynamic rotation.")
-    llm = RotatedGroqLLMService(api_keys=groq_keys, base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile")
+    tts = CartesiaTTSService(
+        api_key=os.getenv("CARTESIA_API_KEY"),
+        settings=CartesiaTTSService.Settings(voice="79a125e8-cd45-4c13-8a67-188112f4dd22")
+    )
+    llm = global_llm
 
     context = LLMContext(messages=[])
     context_aggregator = LLMContextAggregatorPair(context)
@@ -1299,9 +1389,27 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
         else:
             time_of_day = "Evening"
 
-        greeting = f"Good {time_of_day}, this is {CLINIC_NAME}. I'm Saloni. How can I help you today?"
+        greeting = f"Good {time_of_day}, this is {CLINIC_NAME}. I'm Emily. How can I help you today?"
         runtime_state["last_bot_text"] = greeting
-        await task.queue_frames([TTSSpeakFrame(greeting)])
+        
+        pcm_bytes = PRE_RENDERED_GREETINGS.get(time_of_day)
+        if pcm_bytes:
+            logger.info(f"Streaming pre-rendered greeting for {time_of_day} ({len(pcm_bytes)} bytes)")
+            
+            # Send audio in a background task so it doesn't block the connection handler
+            async def stream_audio():
+                chunk_size = 640  # 20ms of 16kHz mono 16-bit PCM
+                for i in range(0, len(pcm_bytes), chunk_size):
+                    chunk = pcm_bytes[i:i+chunk_size]
+                    await task.queue_frames([OutputAudioRawFrame(audio=chunk, sample_rate=16000, num_channels=1)])
+                    # Sleep slightly less than 20ms to prevent gaps and keep the buffer warm
+                    await asyncio.sleep(0.019)
+            
+            asyncio.create_task(stream_audio())
+        else:
+            logger.warning(f"No pre-rendered greeting found for {time_of_day}. Falling back to TTS.")
+            await task.queue_frames([TTSSpeakFrame(greeting)])
+            
         await task.queue_frames([LLMMessagesAppendFrame(messages=[{"role": "assistant", "content": greeting}])])
 
     ingested = False

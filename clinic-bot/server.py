@@ -16,7 +16,28 @@ from fastapi import FastAPI, WebSocket, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import HTMLResponse
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Pre-warming clinic context cache...")
+    try:
+        from tools import get_clinic_context
+        await get_clinic_context(refresh=True)
+        print("Clinic context cache pre-warmed successfully!")
+    except Exception as e:
+        print(f"Failed to pre-warm clinic context cache: {e}")
+
+    print("Pre-rendering greetings...")
+    try:
+        from bot import pre_render_all_greetings
+        await pre_render_all_greetings()
+        print("Greetings pre-rendered successfully!")
+    except Exception as e:
+        print(f"Failed to pre-render greetings: {e}")
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

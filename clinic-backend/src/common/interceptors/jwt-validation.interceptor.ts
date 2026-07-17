@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   CallHandler,
   UnauthorizedException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
@@ -155,7 +156,6 @@ export class JwtValidationInterceptor implements NestInterceptor {
           role_id_from_db: roleIdFromDb,
         },
       );
-
       request.user = {
         userId: user.id,
         email: user.email,
@@ -163,9 +163,22 @@ export class JwtValidationInterceptor implements NestInterceptor {
         role_id: roleIdFromDb || roleIdFromToken || null, // Prefer DB value, fallback to token
       };
 
+      // Block write operations for the test user account (demo account) ONLY when hosted (not on localhost)
+      const host = request.headers.host || '';
+      const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+
+      if (
+        !isLocalhost &&
+        user.email === 'test@gmail.com' &&
+        ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method)
+      ) {
+        this.logger.warn(`ReadOnly User ${user.email} attempted write operation ${request.method} ${request.path}`);
+        throw new ForbiddenException('Demo Account: Modifying settings, booking appointments, or deleting doctors is disabled in Read-Only mode.');
+      }
+
       return next.handle();
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof UnauthorizedException || error instanceof ForbiddenException) {
         throw error;
       }
 

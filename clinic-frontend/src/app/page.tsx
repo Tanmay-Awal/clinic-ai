@@ -126,7 +126,7 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Convo Logo" className="h-6 md:h-8 w-auto object-contain dark:invert-0 invert" />
+            <img src="/logo.png" alt="CliniCall Logo" className="h-6 md:h-8 w-auto object-contain dark:invert-0 invert" />
           </div>
 
           {/* Desktop Navigation */}
@@ -232,7 +232,7 @@ export default function Landing() {
                 </span>
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto relative z-10">
-                Convo Voice Agents handle every call — from reservations to feedback —
+                CliniCall Voice Agents handle every call — from bookings to inquiries —
                 with real-time insights, AI summaries, and actionable analytics.
               </p>
             </div>
@@ -417,7 +417,7 @@ export default function Landing() {
               Ready to Experience AI-Driven Voice Automation?
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Join leading learning brands using Convo to transform their guest communications
+              Join leading healthcare providers using CliniCall to transform their patient communications
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               {isAuthenticated ? (
@@ -462,13 +462,13 @@ export default function Landing() {
                 {/* <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center">
                   <Bot className="h-5 w-5 text-foreground" />
                 </div>
-                <span className="text-lg font-semibold">Convo</span> */}
-                <img src="/logo.png" alt="Convo Logo" className="h-6 md:h-8 w-auto object-contain dark:invert-0 invert" />
+                <span className="text-lg font-semibold">CliniCall</span> */}
+                <img src="/logo.png" alt="CliniCall Logo" className="h-6 md:h-8 w-auto object-contain dark:invert-0 invert" />
               </div>
               <p className="text-sm text-muted-foreground max-w-md">
-                AI-powered voice automation for the learning industry.
+                AI-powered voice automation for clinics and healthcare.
                 <br />
-                <span className="text-xs">by Convo </span>
+                <span className="text-xs">by CliniCall </span>
               </p>
             </div>
 
@@ -519,7 +519,7 @@ export default function Landing() {
 
           {/* Bottom bar */}
           <div className="mt-12 pt-8 border-t border-border text-center text-sm text-muted-foreground">
-            <p>© {new Date().getFullYear()} Convo. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} CliniCall. All rights reserved.</p>
           </div>
         </div>
       </footer>

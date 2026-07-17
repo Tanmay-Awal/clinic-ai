@@ -11,15 +11,13 @@ export const PUSH_OPT_OUT_KEY = 'push-notifications-opted-out';
 export const CALL_IDS_URL_THRESHOLD = 50;
 
 export const RESERVATION_OUTCOMES = [
-  'Booking Secured',
-  'Enquiry Handled',
-  'Large Party Bookings',
-  'Promotional / Offer',
-  'Transferred to Staff',
+  'Urgent Case',
+  'Action Required',
+  'Appointment Booked',
   'Booking Cancelled',
+  'Reschedule Requested',
+  'Enquiry Handled',
   'General Assistance',
-  'Calls After Hours',
-  'Successful Upsells',
 ] as const;
 
 export const FEEDBACK_METRICS = [

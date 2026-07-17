@@ -269,9 +269,6 @@ function CallsTable({ calls, onCallClick, categoryFilter }: { calls: any[]; onCa
                 Category
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground bg-secondary">
-                Sub Category
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground bg-secondary">
                 Duration
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground bg-secondary">
@@ -300,28 +297,9 @@ function CallsTable({ calls, onCallClick, categoryFilter }: { calls: any[]; onCa
                     <div>
                       <p className="text-sm font-medium">{(!call.name || call.name === 'null') ? 'Not Provided' : call.name}</p>
                       {call.display_mobile_number ? (
-                        <div className="flex items-center gap-1 mt-1">
-                          <p className="text-xs text-muted-foreground">
-                            {unmaskedNumbers[call.id]
-                              ? formatPhoneNumber(unmaskedNumbers[call.id])
-                              : formatPhoneNumber(call.display_mobile_number)}
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 hover:bg-transparent"
-                            onClick={(e) => handleToggleUnmask(e, call.id)}
-                            disabled={unmaskingLoading[call.id]}
-                          >
-                            {unmaskingLoading[call.id] ? (
-                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                            ) : unmaskedNumbers[call.id] ? (
-                              <EyeOff className="h-3 w-3 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-3 w-3 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatPhoneNumber(call.display_mobile_number)}
+                        </p>
                       ) : (
                         <p className="text-xs text-muted-foreground">N/A</p>
                       )}
@@ -336,24 +314,6 @@ function CallsTable({ calls, onCallClick, categoryFilter }: { calls: any[]; onCa
                       <Badge variant="outline" className="w-fit text-xs text-muted-foreground border-muted-foreground/30">
                         N/A
                       </Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-4">
-                    {/* Display Sub Category only */}
-                    {call.sub_category ? (
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "w-fit text-xs",
-                          String(call.sub_category).toLowerCase().includes('cancellation')
-                            ? "border-red-500/30 text-red-400 bg-red-500/5"
-                            : "border-blue-500/30 text-blue-400 bg-blue-500/5"
-                        )}
-                      >
-                        {call.sub_category}
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">N/A</span>
                     )}
                   </td>
                   <td className="px-4 py-4">

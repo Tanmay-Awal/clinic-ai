@@ -1,4 +1,4 @@
-// Mock data for Convo Calls Portal
+// Mock data for CliniCall Calls Portal
 
 export type CallDirection = 'inbound' | 'outbound';
 export type CallCategory = 'reservation' | 'sales' | 'feedback' | 'enquiry' | 'support' | 'other';
@@ -54,7 +54,7 @@ export const mockCalls: Call[] = [
     summary: 'Customer booked table for 4 on Nov 15 at 7:30 PM for anniversary celebration. Requested window seating.',
     entities: ['Sarah Mitchell', 'November 15', '7:30 PM', '4 guests'],
     transcript: [
-      { speaker: 'bot', text: 'Hello! Thank you for calling Convo. How can I help you today?', timestamp: 0, confidence: 0.95 },
+      { speaker: 'bot', text: 'Hello! Thank you for calling CliniCall. How can I help you today?', timestamp: 0, confidence: 0.95 },
       { speaker: 'caller', text: "Hi, I'd like to make a reservation for this Friday evening.", timestamp: 3, confidence: 0.92 },
       { speaker: 'bot', text: "Of course! I'd be happy to help you with that. For how many guests?", timestamp: 8, confidence: 0.96 },
       { speaker: 'caller', text: 'Four people. Can we get a window seat? It\'s our anniversary.', timestamp: 12, confidence: 0.88 },

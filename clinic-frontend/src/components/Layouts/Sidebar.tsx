@@ -80,7 +80,7 @@ export default function Sidebar({ isMobile = false, onClose }: SidebarProps) {
         )}>
           <img
             src="/logo.png"
-            alt="Convo Logo"
+            alt="CliniCall Logo"
             className={cn(
               "object-contain object-left dark:invert-0 invert",
               (!collapsed || isMobile) ? "h-5 max-w-full" : "h-5 w-auto object-center"

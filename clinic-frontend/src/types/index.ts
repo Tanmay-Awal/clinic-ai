@@ -270,8 +270,9 @@ export interface ReservationDashboardResponse {
     reservationSeparation?: {
         totalReservationCalls: number;
         securedBookings: { count: number; duration: number; callIds?: string[]; agentBreakdown?: { name: string; count: number }[] };
-        largePartyBookings: { count: number; duration: number; callIds?: string[]; agentBreakdown?: { name: string; count: number }[] };
-        promotionalBookings: { count: number; duration: number; callIds?: string[]; agentBreakdown?: { name: string; count: number }[] };
+        largePartyBookings?: { count: number; duration: number; callIds?: string[]; agentBreakdown?: { name: string; count: number }[] };
+        promotionalBookings?: { count: number; duration: number; callIds?: string[]; agentBreakdown?: { name: string; count: number }[] };
+        urgentBookings?: { count: number; duration: number; callIds?: string[]; agentBreakdown?: { name: string; count: number }[] };
         largeGroup?: { count: number; duration: number; callIds?: string[] };
         promotions?: { count: number; duration: number; callIds?: string[] };
     } | null;

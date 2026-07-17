@@ -1,10 +1,4 @@
 import { DataSource } from 'typeorm';
-import { Doctor } from './src/entities/doctor.entity';
-import { Appointment } from './src/entities/appointment.entity';
-import { Call } from './src/entities/call.entity';
-import { CallAnalysis } from './src/entities/call-analysis.entity';
-import { CallTranscript } from './src/entities/call-transcript.entity';
-import { Action } from './src/entities/action.entity';
 
 async function run() {
   const AppDataSource = new DataSource({
@@ -14,27 +8,27 @@ async function run() {
     username: 'postgres',
     password: 'Tanawal@09',
     database: 'clinic_db',
-    entities: [Doctor, Appointment, Call, CallAnalysis, CallTranscript, Action],
+    entities: [],
     synchronize: false
   });
   
   await AppDataSource.initialize();
+  console.log('DataSource initialized.');
+
+  const queryRunner = AppDataSource.createQueryRunner();
   
-  const q = await AppDataSource.getRepository(Appointment).createQueryBuilder('a')
-    .select('a.doctor_id', 'id')
-    .addSelect('d.name', 'name')
-    .addSelect('d.specialization', 'specialization')
-    .addSelect('COUNT(a.id)', 'patientCount')
-    .leftJoin('a.doctor', 'd')
-    .where('a.doctor_id IS NOT NULL')
-    .groupBy('a.doctor_id, d.name, d.specialization')
-    .orderBy('"patientCount"', 'DESC')
-    .limit(5)
-    .getRawMany();
-    
-  console.log('Result:', q);
+  console.log('Adding columns to actions table...');
+  await queryRunner.query(`
+    ALTER TABLE actions 
+    ADD COLUMN IF NOT EXISTS comments text,
+    ADD COLUMN IF NOT EXISTS comments_updated_at timestamp with time zone,
+    ADD COLUMN IF NOT EXISTS resolution_notes text;
+  `);
+  console.log('Columns added successfully!');
   
   await AppDataSource.destroy();
 }
 
-run();
+run().catch(err => {
+  console.error('Error running script:', err);
+});

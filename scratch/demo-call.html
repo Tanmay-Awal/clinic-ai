@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Active Call</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: radial-gradient(ellipse at 30% 20%, #0d1526 0%, #070a12 40%, #000000 100%);
+    overflow: hidden;
+  }
+
+  .ambient-glow {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(99, 120, 255, 0.04) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: ambientPulse 6s ease-in-out infinite;
+  }
+
+  @keyframes ambientPulse {
+    0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  }
+
+  .card {
+    position: relative;
+    width: 380px;
+    padding: 40px 36px 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(156,163,175,0.07);
+    border: 1px solid rgba(156,163,175,0.15);
+    border-radius: 100px;
+    padding: 5px 14px;
+    margin-bottom: 36px;
+    transition: all 0.3s ease;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #9ca3af;
+  }
+
+  .status-dot.is-live {
+    background: #4ade80;
+    box-shadow: 0 0 8px #4ade80;
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  .status-text {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #9ca3af;
+    transition: color 0.3s ease;
+  }
+
+  .avatar-area {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin-bottom: 28px;
+    flex-shrink: 0;
+  }
+
+  .avatar {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 40%, #a78bfa 70%, #c4b5fd 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+      0 0 0 1px rgba(139, 92, 246, 0.3),
+      0 8px 32px rgba(99, 102, 241, 0.35),
+      inset 0 1px 0 rgba(255,255,255,0.2);
+    z-index: 2;
+  }
+
+  .mic-svg {
+    width: 36px;
+    height: 36px;
+    opacity: 0.95;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.3));
+  }
+
+  .waveform-container {
+    width: 100%;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .caller-name {
+    font-size: 22px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.95);
+    letter-spacing: -0.03em;
+    margin-bottom: 5px;
+    text-align: center;
+  }
+
+  .caller-sub {
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.38);
+    letter-spacing: 0.01em;
+    margin-bottom: 28px;
+    text-align: center;
+  }
+
+  .wave-canvas-wrap {
+    width: 100%;
+    height: 64px;
+    position: relative;
+    margin-bottom: 24px;
+  }
+
+  canvas#waveCanvas {
+    width: 100%;
+    height: 64px;
+    display: block;
+  }
+
+  .timer {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 36px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .btn-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .btn-icon:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.85);
+    transform: scale(1.06);
+  }
+
+  .btn-icon:active { transform: scale(0.96); }
+
+  .btn-icon svg { width: 20px; height: 20px; }
+
+  .btn-action {
+    height: 48px;
+    padding: 0 26px;
+    border-radius: 100px;
+    border: none;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: rgba(255,255,255,0.95);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3), 0 0 0 1px rgba(16,185,129,0.25);
+  }
+
+  .btn-action:hover {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    transform: scale(1.03);
+    box-shadow: 0 6px 22px rgba(16, 185, 129, 0.45), 0 0 0 1px rgba(16,185,129,0.35);
+  }
+
+  .btn-action:active {
+    transform: scale(0.97);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  }
+
+  .btn-action.is-end {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3), 0 0 0 1px rgba(239,68,68,0.25);
+  }
+
+  .btn-action.is-end:hover {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    box-shadow: 0 6px 22px rgba(239, 68, 68, 0.45), 0 0 0 1px rgba(239,68,68,0.35);
+  }
+
+  .btn-action svg { width: 16px; height: 16px; }
+
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.07) 30%, rgba(255,255,255,0.07) 70%, transparent 100%);
+    margin-bottom: 28px;
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient-glow"></div>
+
+<div class="card" role="main" aria-label="Active phone call interface">
+
+  <div class="status-pill" id="statusPill">
+    <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+    <span class="status-text" id="statusText">Ready</span>
+  </div>
+
+  <div class="avatar-area">
+    <div class="avatar" aria-hidden="true">
+      <svg class="mic-svg" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="12" y="4" width="12" height="18" rx="6" fill="white" fill-opacity="0.95"/>
+        <path d="M6 18c0 6.627 5.373 12 12 12s12-5.373 12-12" stroke="white" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.8"/>
+        <line x1="18" y1="30" x2="18" y2="34" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/>
+        <line x1="13" y1="34" x2="23" y2="34" stroke="white" stroke-width="2.2" stroke-linecap="round" opacity="0.8"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="waveform-container">
+    <div class="caller-name">Emily</div>
+    <div class="caller-sub">Receptionist · City Hospital</div>
+
+    <div class="wave-canvas-wrap">
+      <canvas id="waveCanvas" width="308" height="64" aria-hidden="true"></canvas>
+    </div>
+
+    <div class="timer" id="callTimer" aria-live="off">00:00:00</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="controls">
+
+
+    <button class="btn-action" id="btnAction" aria-label="Start call">
+      <svg id="btnActionIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4 19.79 19.79 0 0 1 1.61 4.84 2 2 0 0 1 3.6 2.64h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 10.2a16 16 0 0 0 6 6l.9-.9a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+      </svg>
+      <span id="btnActionText">Start Call</span>
+    </button>
+
+
+  </div>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('waveCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const midY = H / 2;
+
+  let phase = 0;
+  let callActive = false;
+  let speaking = false;
+  let speakIntensity = 0;
+  let targetIntensity = 0;
+  let muted = false;
+  let speakerOn = true;
+  let elapsed = 0;
+  let lastTick = performance.now();
+
+  const numPoints = 120;
+  const smoothBuffer = new Float32Array(numPoints).fill(0);
+  const noiseSeeds = Array.from({length: 6}, (_, i) => Math.random() * 1000 + i * 200);
+
+  function noise(x, seed) {
+    const s = Math.sin(x * 0.01 + seed) * 43758.5453;
+    return s - Math.floor(s);
+  }
+
+  function smoothNoise(x, seed) {
+    const ix = Math.floor(x);
+    const fx = x - ix;
+    const ux = fx * fx * (3 - 2 * fx);
+    return noise(ix, seed) * (1 - ux) + noise(ix + 1, seed) * ux;
+  }
+
+  function getSpeakSample(t, i) {
+    if (!speaking || muted) return 0;
+    const p = i / numPoints;
+    let v = 0;
+    v += Math.sin(p * Math.PI * 2.1 + t * 2.8) * 0.38;
+    v += Math.sin(p * Math.PI * 4.3 + t * 4.1 + 0.7) * 0.22;
+    v += Math.sin(p * Math.PI * 1.4 + t * 1.9 - 1.1) * 0.18;
+    v += (smoothNoise(p * 80 + t * 12, noiseSeeds[0]) - 0.5) * 0.28;
+    v += (smoothNoise(p * 120 + t * 7, noiseSeeds[1]) - 0.5) * 0.15;
+    const env = Math.sin(p * Math.PI);
+    v *= env;
+    return v * speakIntensity * 0.95;
+  }
+
+  function getIdleSample(t, i) {
+    const p = i / numPoints;
+    let v = 0;
+    v += Math.sin(p * Math.PI * 1.2 + t * 0.8) * 0.04;
+    v += (smoothNoise(p * 60 + t * 2, noiseSeeds[2]) - 0.5) * 0.03;
+    const env = Math.sin(p * Math.PI);
+    return v * env;
+  }
+
+  let scheduledToggle = null;
+  function scheduleNext() {
+    if (!callActive) return;
+    const delay = 500 + Math.random() * 1500;
+    scheduledToggle = setTimeout(() => {
+      // Constantly fluctuate, never flat
+      targetIntensity = 0.5 + Math.random() * 0.7; 
+      scheduleNext();
+    }, delay);
+  }
+
+  function drawWave(t) {
+    ctx.clearRect(0, 0, W, H);
+
+    const grad = ctx.createLinearGradient(0, 0, W, 0);
+    if (muted) {
+      grad.addColorStop(0, 'rgba(150,150,170,0)');
+      grad.addColorStop(0.3, 'rgba(150,150,170,0.35)');
+      grad.addColorStop(0.5, 'rgba(150,150,170,0.55)');
+      grad.addColorStop(0.7, 'rgba(150,150,170,0.35)');
+      grad.addColorStop(1, 'rgba(150,150,170,0)');
+    } else if (speaking) {
+      grad.addColorStop(0, 'rgba(139,92,246,0)');
+      grad.addColorStop(0.2, 'rgba(139,92,246,0.6)');
+      grad.addColorStop(0.5, 'rgba(167,139,250,0.95)');
+      grad.addColorStop(0.8, 'rgba(139,92,246,0.6)');
+      grad.addColorStop(1, 'rgba(139,92,246,0)');
+    } else {
+      grad.addColorStop(0, 'rgba(99,102,241,0)');
+      grad.addColorStop(0.3, 'rgba(99,102,241,0.25)');
+      grad.addColorStop(0.5, 'rgba(129,140,248,0.4)');
+      grad.addColorStop(0.7, 'rgba(99,102,241,0.25)');
+      grad.addColorStop(1, 'rgba(99,102,241,0)');
+    }
+
+    const numLayers = 3;
+    for (let layer = 0; layer < numLayers; layer++) {
+      const phaseOff = layer * (Math.PI * 2 / numLayers) * 0.6;
+      const alpha = layer === 0 ? 1 : (layer === 1 ? 0.45 : 0.22);
+      const scaleY = 1 - layer * 0.18;
+
+      ctx.beginPath();
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = layer === 0 ? 2.2 : (layer === 1 ? 1.5 : 1);
+      ctx.globalAlpha = alpha;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+
+      for (let i = 0; i <= numPoints; i++) {
+        const raw = getSpeakSample(t + phaseOff * 0.3, i) + getIdleSample(t + phaseOff, i);
+        const target = raw * (H * 0.44) * scaleY;
+        smoothBuffer[i] = smoothBuffer[i] * 0.72 + target * 0.28;
+        const x = (i / numPoints) * W;
+        const y = midY + smoothBuffer[i];
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.globalAlpha = alpha * 0.5;
+      for (let i = 0; i <= numPoints; i++) {
+        const x = (i / numPoints) * W;
+        const y = midY - smoothBuffer[i];
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+
+    const dotGrad = ctx.createRadialGradient(W/2, midY, 0, W/2, midY, 4);
+    dotGrad.addColorStop(0, 'rgba(196,181,253,0.9)');
+    dotGrad.addColorStop(1, 'rgba(196,181,253,0)');
+    ctx.beginPath();
+    ctx.arc(W/2, midY, 4, 0, Math.PI * 2);
+    ctx.fillStyle = dotGrad;
+    ctx.fill();
+  }
+
+  function padZ(n) { return String(Math.floor(n)).padStart(2, '0'); }
+
+  function updateTimer() {
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    document.getElementById('callTimer').textContent = `${padZ(h)}:${padZ(m)}:${padZ(s)}`;
+  }
+
+  let timerInterval = null;
+
+  function loop(now) {
+    const dt = (now - lastTick) / 1000;
+    lastTick = now;
+    phase += dt;
+
+    speakIntensity += (targetIntensity - speakIntensity) * Math.min(dt * 4.5, 1);
+
+    drawWave(phase);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+
+
+  document.getElementById('btnAction').addEventListener('click', function() {
+    const pill = document.getElementById('statusPill');
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    const btnText = document.getElementById('btnActionText');
+    
+    if (!callActive) {
+      // Start call
+      callActive = true;
+      speaking = true;
+      targetIntensity = 0.55 + Math.random() * 0.45;
+      scheduleNext();
+      
+      elapsed = 0;
+      updateTimer();
+      timerInterval = setInterval(() => { elapsed++; updateTimer(); }, 1000);
+      
+      this.classList.add('is-end');
+      btnText.textContent = 'End Call';
+      
+      pill.style.background = 'rgba(74, 222, 128, 0.08)';
+      pill.style.borderColor = 'rgba(74, 222, 128, 0.18)';
+      dot.classList.add('is-live');
+      text.style.color = '#4ade80';
+      text.textContent = 'Live';
+    } else {
+      // End call
+      if (scheduledToggle) clearTimeout(scheduledToggle);
+      if (timerInterval) clearInterval(timerInterval);
+      
+      callActive = false;
+      speaking = false;
+      targetIntensity = 0;
+      
+      this.style.opacity = '0.5';
+      this.style.pointerEvents = 'none';
+      btnText.textContent = 'Call ended';
+      
+      pill.style.background = 'rgba(156,163,175,0.07)';
+      pill.style.borderColor = 'rgba(156,163,175,0.15)';
+      dot.classList.remove('is-live');
+      text.style.color = '#9ca3af';
+      text.textContent = 'Call ended';
+    }
+  });
+})();
+</script>
+</body>
+</html>
