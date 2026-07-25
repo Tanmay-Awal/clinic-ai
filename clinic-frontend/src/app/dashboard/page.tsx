@@ -90,7 +90,7 @@ const LONG_DATE_RANGES = ['90d'];
 
 export default function Dashboard() {
   const router = useRouter();
-  const [dateRange, setDateRange] = useState('7d');
+  const [dateRange, setDateRange] = useState('30d');
   const [category, setCategory] = useState('reservation');
   const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
   const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
@@ -308,6 +308,7 @@ export default function Dashboard() {
 
   // Generate dynamic categories from interactions
   const user = useAuthStore((state) => state.user);
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   // Redirect actions-only users away from dashboard
   useEffect(() => {
@@ -549,20 +550,16 @@ export default function Dashboard() {
         rows.push([]);
       }
 
-      // ── Section 6: Reservation Separation ──
       if (reservationKPIs.reservationSeparation) {
         const s = reservationKPIs.reservationSeparation;
         const sb = s.securedBookings || { count: 0, duration: 0 };
-        const lb = s.largeGroup || s.largePartyBookings || { count: 0, duration: 0 };
-        const pb = s.promotions || s.promotionalBookings || { count: 0, duration: 0 };
-        rows.push(['--- RESERVATION SEPARATION ---'].map(formatCSVValue));
+        const ub = s.urgentBookings || { count: 0, duration: 0 };
+        rows.push(['--- APPOINTMENT BREAKDOWN ---'].map(formatCSVValue));
         rows.push(['Total Appointment Calls', String(s.totalReservationCalls)].map(formatCSVValue));
-        rows.push(['Secured Bookings Count', String(sb.count)].map(formatCSVValue));
-        rows.push(['Secured Bookings Covers', String(sb.duration)].map(formatCSVValue));
-        rows.push(['Multiple Patient Bookings Count', String(lb.count)].map(formatCSVValue));
-        rows.push(['Multiple Patient Bookings Patients', String(lb.duration)].map(formatCSVValue));
-        rows.push(['Promotional Bookings Count', String(pb.count)].map(formatCSVValue));
-        rows.push(['Promotional Bookings Covers', String(pb.duration)].map(formatCSVValue));
+        rows.push(['General Consultations Count', String(sb.count)].map(formatCSVValue));
+        rows.push(['General Consultations Duration', String(sb.duration)].map(formatCSVValue));
+        rows.push(['Urgent Cases Count', String(ub.count)].map(formatCSVValue));
+        rows.push(['Urgent Cases Duration', String(ub.duration)].map(formatCSVValue));
         rows.push([]);
       }
 
@@ -899,11 +896,10 @@ export default function Dashboard() {
     const separation = reservationData?.reservationSeparation;
     // Pinned down property names: .count and .duration
     const separationSecured = separation?.securedBookings || { count: 0, duration: 0 };
-    const separationLarge = separation?.largePartyBookings || separation?.largeGroup || { count: 0, duration: 0 };
-    const separationPromo = separation?.promotionalBookings || separation?.promotions || { count: 0, duration: 0 };
+    const separationUrgent = separation?.urgentBookings || { count: 0, duration: 0 };
 
-    const breakdownBookingsTotal = separationSecured.count + separationLarge.count + separationPromo.count;
-    const breakdownCoversTotal = separationSecured.duration + separationLarge.duration + separationPromo.duration;
+    const breakdownBookingsTotal = separationSecured.count + separationUrgent.count;
+    const breakdownCoversTotal = separationSecured.duration + separationUrgent.duration;
 
     // Debug: log how totals are being derived for the reservation KPIs
     if (typeof window !== 'undefined') {
@@ -2197,20 +2193,16 @@ export default function Dashboard() {
 
             {reservationKPIs.reservationSeparation && (() => {
               const sep = reservationKPIs.reservationSeparation;
-              // Cleaned up property fallbacks - assuming stabilized API uses .count and .duration
               const sb = sep.securedBookings || { count: 0, duration: 0, callIds: [] };
-              const lb = sep.largePartyBookings || sep.largeGroup || { count: 0, duration: 0, callIds: [] };
-              const pb = sep.promotionalBookings || sep.promotions || { count: 0, duration: 0, callIds: [] };
-              const total = sb.count + lb.count + pb.count;
-              const totalCovers = sb.duration + lb.duration + pb.duration;
+              const ub = sep.urgentBookings || { count: 0, duration: 0, callIds: [] };
+              const total = sb.count + ub.count;
+              const totalCovers = sb.duration + ub.duration;
               const pctSecured = total > 0 ? ((sb.count / total) * 100) : 0;
-              const pctLarge = total > 0 ? ((lb.count / total) * 100) : 0;
-              const pctPromo = total > 0 ? ((pb.count / total) * 100) : 0;
+              const pctUrgent = total > 0 ? ((ub.count / total) * 100) : 0;
 
               const items = [
                 { label: 'General Consultations', count: sb.count, duration: sb.duration, pct: pctSecured, color: 'bg-emerald-400', trackColor: 'bg-emerald-400/15', outcome: 'General Consultations', callIds: sb.callIds, agentBreakdown: sb.agentBreakdown },
-                { label: 'Specialist Visits', count: lb.count, duration: lb.duration, pct: pctLarge, color: 'bg-sky-400', trackColor: 'bg-sky-400/15', outcome: 'Specialist Visits', callIds: lb.callIds, agentBreakdown: lb.agentBreakdown },
-                { label: 'Follow-up Appointments', count: pb.count, duration: pb.duration, pct: pctPromo, color: 'bg-amber-400', trackColor: 'bg-amber-400/15', outcome: 'Follow-up Appointments', callIds: pb.callIds, agentBreakdown: pb.agentBreakdown },
+                { label: 'Urgent Cases', count: ub.count, duration: ub.duration, pct: pctUrgent, color: 'bg-red-500', trackColor: 'bg-red-500/15', outcome: 'Urgent Case', callIds: ub.callIds, agentBreakdown: ub.agentBreakdown },
               ];
 
               return (
@@ -3031,6 +3023,54 @@ export default function Dashboard() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="grid grid-cols-12 gap-6 auto-rows-min"
           >
+            {/* Read-Only Demo Banner */}
+            {false && user?.email === 'test@gmail.com' && !isLocalhost && (
+              <div className="col-span-12 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5 text-rose-200 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                  <span>
+                    <strong>Demo Mode Active:</strong> You are logged in as a Read-Only user (<code>test@gmail.com</code>). Modifying settings, booking appointments, or deleting configurations is disabled.
+                  </span>
+                </div>
+                <span className="text-xs px-2.5 py-1 bg-rose-500/20 rounded-md border border-rose-500/30 font-semibold self-start sm:self-auto uppercase tracking-wide">
+                  Read Only
+                </span>
+              </div>
+            )}
+
+            {/* Test Call Widget */}
+            {false && (
+              <div className="col-span-12 p-5 rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/20 to-card p-6 card-glow flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+                <div className="absolute -top-12 -left-12 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+                
+                <div className="relative z-10 flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="flex h-2.5 w-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                    <h4 className="text-base font-bold text-cyan-400 uppercase tracking-wide">
+                      Test the AI Phone Receptionist Live
+                    </h4>
+                  </div>
+                  <p className="text-sm text-foreground mb-1 leading-relaxed">
+                    Call the number below on your mobile phone to speak with <strong>Emily</strong>, our AI receptionist. You can ask about doctor bios, check availability, or schedule a test appointment.
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    ⚠️ <strong>Disclaimer:</strong> Since this demo uses a free Twilio developer account, please press <strong>any key</strong> on your keypad as soon as the call connects to skip the trial prompt and connect to our server.
+                  </p>
+                </div>
+                
+                <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4 shrink-0">
+                  <div className="w-full sm:w-auto text-center px-6 py-4 rounded-xl border border-border bg-card/60 backdrop-blur-md">
+                    <span className="text-xs text-muted-foreground block uppercase tracking-wider mb-1">
+                      Twilio Call Number
+                    </span>
+                    <span className="text-lg font-mono font-bold text-cyan-400 tracking-wide select-all">
+                      +1 (908) 657-1711
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* KPI Tiles Row */}
             <div className="col-span-12">
               <div className={

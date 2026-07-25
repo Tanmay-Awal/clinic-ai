@@ -62,7 +62,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {/* Mobile Header */}
         <div className="md:hidden flex shrink-0 items-center justify-between p-4 border-b border-border bg-card">
           <span className="text-lg font-semibold tracking-tight text-foreground">
-            Convo
+            CliniCall
           </span>
 
           <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>

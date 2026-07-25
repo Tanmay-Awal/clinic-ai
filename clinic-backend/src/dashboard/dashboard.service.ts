@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { Call } from '../entities/call.entity';
 import { Appointment } from '../entities/appointment.entity';
 import { Action } from '../entities/action.entity';
@@ -22,31 +22,53 @@ export class DashboardService {
   ) { }
 
   async getSummaryDashboard(dto?: any, user?: any) {
-    const totalCalls = await this.callRepository.count();
-    const inboundCalls = await this.callRepository.count({ where: { call_direction: 'inbound' } });
+    let callDateFilter: any = {};
+    let appointmentDateFilter: any = {};
+    let actionDateFilter: any = {};
+
+    if (dto?.startDate && dto?.endDate) {
+      callDateFilter.created_at = Between(new Date(dto.startDate), new Date(dto.endDate));
+      appointmentDateFilter.created_at = Between(new Date(dto.startDate), new Date(dto.endDate));
+      actionDateFilter.created_at = Between(new Date(dto.startDate), new Date(dto.endDate));
+    } else if (dto?.startDate) {
+      callDateFilter.created_at = MoreThanOrEqual(new Date(dto.startDate));
+      appointmentDateFilter.created_at = MoreThanOrEqual(new Date(dto.startDate));
+      actionDateFilter.created_at = MoreThanOrEqual(new Date(dto.startDate));
+    } else if (dto?.endDate) {
+      callDateFilter.created_at = LessThanOrEqual(new Date(dto.endDate));
+      appointmentDateFilter.created_at = LessThanOrEqual(new Date(dto.endDate));
+      actionDateFilter.created_at = LessThanOrEqual(new Date(dto.endDate));
+    }
+
+    const totalCalls = await this.callRepository.count({ where: callDateFilter });
+    const inboundCalls = await this.callRepository.count({ where: { call_direction: 'inbound', ...callDateFilter } });
     const outboundCalls = totalCalls - inboundCalls;
 
     // Average duration
-    const calls = await this.callRepository.find({ select: ['call_duration_ms'] });
+    const calls = await this.callRepository.find({ select: ['call_duration_ms'], where: callDateFilter });
     const totalDurationSeconds = calls.reduce((sum, c) => sum + (c.call_duration_ms ? c.call_duration_ms / 1000 : 0), 0);
     const avgDurationSeconds = totalCalls > 0 ? Math.floor(totalDurationSeconds / totalCalls) : 0;
 
-    const totalReservations = await this.appointmentRepository.count();
+    const totalReservations = await this.appointmentRepository.count({ where: appointmentDateFilter });
     const conversionRate = totalCalls > 0 ? (totalReservations / totalCalls) * 100 : 0;
 
     // Fetch all calls with analysis to compute accurate outcomes
-    const callsWithAnalysis = await this.callRepository.find({ relations: ['callAnalysis'] });
-    const callsWithActions = await this.actionRepository.find({ select: ['call_id'], where: { status: 'Open' } });
+    const callsWithAnalysis = await this.callRepository.find({ relations: ['callAnalysis'], where: callDateFilter });
+    const callsWithActions = await this.actionRepository.find({ select: ['call_id'], where: { status: 'Open', ...actionDateFilter } });
     const actionCallIds = new Set(callsWithActions.map(a => Number(a.call_id)));
 
     let urgent = 0;
     let inquiry = 0;
     let general = 0;
+    const urgentIds: string[] = [];
+    const inquiryIds: string[] = [];
+    const generalIds: string[] = [];
 
     for (const call of callsWithAnalysis) {
       const cat = call.category;
       if (cat === 'Emergency' || call.transfer_to_human) {
         urgent++;
+        urgentIds.push(call.id.toString());
       } else if (actionCallIds.has(Number(call.id))) {
         // Skip, handled independently
       } else if (call.appointment_created) {
@@ -57,24 +79,38 @@ export class DashboardService {
         // Skip, handled independently
       } else if (cat === 'Inquiry') {
         inquiry++;
+        inquiryIds.push(call.id.toString());
       } else {
         general++;
+        generalIds.push(call.id.toString());
       }
     }
 
-    const actionReq = await this.actionRepository.count({ where: { status: 'Open' } });
-    const booked = await this.appointmentRepository.count({ where: { status: 'booked' } });
-    const cancelled = await this.appointmentRepository.count({ where: { status: 'cancelled' } });
-    const rescheduled = await this.appointmentRepository.count({ where: { status: 'rescheduled' } });
+    const openActions = await this.actionRepository.find({ where: { status: 'Open', ...actionDateFilter } });
+    const actionReqIds = openActions.map(a => a.call_id?.toString()).filter(Boolean);
+
+    const bookedApts = await this.appointmentRepository.find({ where: { status: 'booked', ...appointmentDateFilter } });
+    const bookedIds = bookedApts.map(a => a.created_from_call_id?.toString()).filter(Boolean);
+
+    const cancelledApts = await this.appointmentRepository.find({ where: { status: 'cancelled', ...appointmentDateFilter } });
+    const cancelledIds = cancelledApts.map(a => a.created_from_call_id?.toString()).filter(Boolean);
+
+    const rescheduledApts = await this.appointmentRepository.find({ where: { status: 'rescheduled', ...appointmentDateFilter } });
+    const rescheduledIds = rescheduledApts.map(a => a.created_from_call_id?.toString()).filter(Boolean);
+
+    const actionReq = actionReqIds.length;
+    const booked = bookedApts.length;
+    const cancelled = cancelledApts.length;
+    const rescheduled = rescheduledApts.length;
 
     const outcomeBarDataArray = [
-      { name: 'Urgent Case', count: urgent },
-      { name: 'Action Required', count: actionReq },
-      { name: 'Appointment Booked', count: booked },
-      { name: 'Booking Cancelled', count: cancelled },
-      { name: 'Reschedule Requested', count: rescheduled },
-      { name: 'Enquiry Handled', count: inquiry },
-      { name: 'General Assistance', count: general },
+      { name: 'Urgent Case', count: urgent, callIds: urgentIds },
+      { name: 'Action Required', count: urgentIds.length > 0 ? actionReq - urgentIds.length : actionReq, callIds: actionReqIds.filter(id => !urgentIds.includes(id)) }, // Prevent double counting actions that are already in Emergency calls
+      { name: 'Appointment Booked', count: booked, callIds: bookedIds },
+      { name: 'Booking Cancelled', count: cancelled, callIds: cancelledIds },
+      { name: 'Reschedule Requested', count: rescheduled, callIds: rescheduledIds },
+      { name: 'Enquiry Handled', count: inquiry, callIds: inquiryIds },
+      { name: 'General Assistance', count: general, callIds: generalIds },
     ];
 
     let totalSentiment = 0;
@@ -127,7 +163,7 @@ export class DashboardService {
       depositCaptureRate: 0,
       outcomeBarData: outcomeBarDataArray,
       volumeTrend: await (async () => {
-        const callsVolume = await this.callRepository.find({ select: ['created_at'] });
+        const callsVolume = await this.callRepository.find({ select: ['created_at'], where: callDateFilter });
         const volumeByDay: Record<string, number> = {};
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         
@@ -169,14 +205,38 @@ export class DashboardService {
   async getReservationDashboard(dto?: any, user?: any) {
     const summary = await this.getSummaryDashboard(dto, user);
 
+    let callDateFilter: any = {};
+    let appointmentDateFilter: any = {};
+
+    if (dto?.startDate && dto?.endDate) {
+      callDateFilter.created_at = Between(new Date(dto.startDate), new Date(dto.endDate));
+      appointmentDateFilter.created_at = Between(new Date(dto.startDate), new Date(dto.endDate));
+    } else if (dto?.startDate) {
+      callDateFilter.created_at = MoreThanOrEqual(new Date(dto.startDate));
+      appointmentDateFilter.created_at = MoreThanOrEqual(new Date(dto.startDate));
+    } else if (dto?.endDate) {
+      callDateFilter.created_at = LessThanOrEqual(new Date(dto.endDate));
+      appointmentDateFilter.created_at = LessThanOrEqual(new Date(dto.endDate));
+    }
+
     // Top Doctors (Using SQL Query Builder)
-    const topDoctorsQuery = await this.appointmentRepository.createQueryBuilder('a')
+    const qb = this.appointmentRepository.createQueryBuilder('a')
       .select('a.doctor_id', 'id')
       .addSelect('d.name', 'name')
       .addSelect('d.specialization', 'specialization')
       .addSelect('COUNT(a.id)', 'patientCount')
       .leftJoin('a.doctor', 'd')
-      .where('a.doctor_id IS NOT NULL')
+      .where('a.doctor_id IS NOT NULL');
+
+    if (dto?.startDate && dto?.endDate) {
+      qb.andWhere('a.created_at BETWEEN :start AND :end', { start: new Date(dto.startDate), end: new Date(dto.endDate) });
+    } else if (dto?.startDate) {
+      qb.andWhere('a.created_at >= :start', { start: new Date(dto.startDate) });
+    } else if (dto?.endDate) {
+      qb.andWhere('a.created_at <= :end', { end: new Date(dto.endDate) });
+    }
+
+    const topDoctorsQuery = await qb
       .groupBy('a.doctor_id, d.name, d.specialization')
       .orderBy('"patientCount"', 'DESC')
       .limit(5)
@@ -227,7 +287,7 @@ export class DashboardService {
       locationWiseCallCount: topDoctors.map(doc => ({ location: doc.name, count: doc.patientCount })),
       reservationCategories: [],
       timingDistribution: await (async () => {
-        const calls = await this.callRepository.find({ select: ['created_at'] });
+        const calls = await this.callRepository.find({ select: ['created_at'], where: callDateFilter });
         const hoursMap: Record<number, number> = {};
         for (let i = 0; i < 24; i++) hoursMap[i] = 0;
         
@@ -248,27 +308,36 @@ export class DashboardService {
       topAskClass: summary.topAskClass,
       maxBookingCategory: summary.maxBookingCategory,
       topQueriesToday: await (async () => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const callsWithAnalysis = await this.callRepository.find({ relations: ['callAnalysis'], order: { created_at: 'DESC' } });
+        const callsWithAnalysis = await this.callRepository.find({ relations: ['callAnalysis'], order: { created_at: 'DESC' }, where: callDateFilter });
         const queries = callsWithAnalysis
-            .filter(c => c.created_at && new Date(c.created_at).toISOString().split('T')[0] === todayStr && c.callAnalysis?.call_summary)
+            .filter(c => c.callAnalysis?.call_summary)
             .map(c => ({ query: (c.callAnalysis.call_summary || '').substring(0, 50) + '...', count: 1 }))
             .slice(0, 5);
         return queries;
       })(),
-      totalBookingsCaptured: await this.appointmentRepository.count(),
+      totalBookingsCaptured: await (async () => {
+        const urgentCount = summary.outcomeBarData?.find(item => item.name === 'Urgent Case')?.count || 0;
+        const bookingsCount = await this.appointmentRepository.count({ where: appointmentDateFilter });
+        return bookingsCount + urgentCount;
+      })(),
       totalBookingsBreakdown: [],
       avgTime: summary.aht,
-      totalCovers: await this.appointmentRepository.count(),
-      confirmedPercentage: summary.totalCalls > 0 
-        ? Number(((await this.appointmentRepository.count() / summary.totalCalls) * 100).toFixed(1)) 
-        : 0,
+      totalCovers: await (async () => {
+        const urgentCount = summary.outcomeBarData?.find(item => item.name === 'Urgent Case')?.count || 0;
+        const bookingsCount = await this.appointmentRepository.count({ where: appointmentDateFilter });
+        return bookingsCount + urgentCount;
+      })(),
+      confirmedPercentage: await (async () => {
+        if (summary.totalCalls <= 0) return 0;
+        const urgentCount = summary.outcomeBarData?.find(item => item.name === 'Urgent Case')?.count || 0;
+        const bookingsCount = await this.appointmentRepository.count({ where: appointmentDateFilter });
+        return Number((((bookingsCount + urgentCount) / summary.totalCalls) * 100).toFixed(1));
+      })(),
       topSpecialRequests: await (async () => {
-        const appointments = await this.appointmentRepository.find({ select: ['notes'] });
+        const appointments = await this.appointmentRepository.find({ select: ['notes'], where: appointmentDateFilter });
         const notesMap: Record<string, number> = {};
         appointments.forEach(apt => {
             if (apt.notes && apt.notes.trim()) {
-                // simple exact match for now
                 notesMap[apt.notes.trim()] = (notesMap[apt.notes.trim()] || 0) + 1;
             }
         });
@@ -283,7 +352,7 @@ export class DashboardService {
       topDoctors,
       topDiseases,
       dailyBookings: await (async () => {
-        const allAppointments = await this.appointmentRepository.find({ select: ['created_at', 'date'] });
+        const allAppointments = await this.appointmentRepository.find({ select: ['created_at', 'date'], where: appointmentDateFilter });
         const byDateBookedMap: Record<string, number> = {};
         const byVisitDateMap: Record<string, number> = {};
 
@@ -308,12 +377,10 @@ export class DashboardService {
         };
       })(),
       afterHoursStats: await (async () => {
-        // Assuming Clinic Working Hours are 9 AM (09:00) to 5 PM (17:00).
-        // Any call before 9 AM or after 5 PM is considered After-Hours.
         const OPENING_HOUR = 9;
         const CLOSING_HOUR = 17;
 
-        const allCalls = await this.callRepository.find({ select: ['id', 'created_at'] });
+        const allCalls = await this.callRepository.find({ select: ['id', 'created_at'], where: callDateFilter });
         const afterHoursCallIds = new Set<number>();
         let callsAfterHours = 0;
 
@@ -328,7 +395,7 @@ export class DashboardService {
             }
         });
 
-        const allAppointments = await this.appointmentRepository.find({ select: ['id', 'duration_minutes', 'created_from_call_id'] });
+        const allAppointments = await this.appointmentRepository.find({ select: ['id', 'duration_minutes', 'created_from_call_id'], where: appointmentDateFilter });
         
         let bookingsDoneAfterHours = 0;
         let durationGeneratedAfterHours = 0;
@@ -348,37 +415,48 @@ export class DashboardService {
         };
       })(),
       reservationSeparation: await (async () => {
-        const allAppointments = await this.appointmentRepository.find();
+        const allAppointments = await this.appointmentRepository.find({
+          relations: ['created_from_call'],
+          where: appointmentDateFilter
+        });
         let generalCount = 0; let generalDuration = 0; const generalIds: string[] = [];
-        let specialistCount = 0; let specialistDuration = 0; const specialistIds: string[] = [];
-        let followupCount = 0; let followupDuration = 0; const followupIds: string[] = [];
+        let urgentCount = 0; let urgentDuration = 0; const urgentIds: string[] = [];
 
-        // Fallback to mock logic if no appointments exist yet to keep the UI looking good
+        // If no appointments exist for the range, return zeros
         if (!allAppointments || allAppointments.length === 0) {
             return {
               totalReservationCalls: summary.totalCalls,
-              securedBookings: { count: Math.floor(summary.totalCalls * 0.4), duration: 15, callIds: [] },
-              largePartyBookings: { count: Math.floor(summary.totalCalls * 0.2), duration: 30, callIds: [] },
-              promotionalBookings: { count: Math.floor(summary.totalCalls * 0.15), duration: 10, callIds: [] },
+              securedBookings: { count: 0, duration: 0, callIds: [] },
+              urgentBookings: { count: 0, duration: 0, callIds: [] },
+              largePartyBookings: { count: 0, duration: 0, callIds: [] },
+              promotionalBookings: { count: 0, duration: 0, callIds: [] },
             };
         }
 
         allAppointments.forEach(apt => {
           const duration = apt.duration_minutes || 30;
-          if (duration <= 15) {
-            followupCount++; followupDuration += duration; followupIds.push(apt.id.toString());
-          } else if (duration <= 30) {
-            generalCount++; generalDuration += duration; generalIds.push(apt.id.toString());
-          } else {
-            specialistCount++; specialistDuration += duration; specialistIds.push(apt.id.toString());
-          }
+          generalCount++; 
+          generalDuration += duration; 
+          generalIds.push(apt.id.toString());
         });
+
+        // Fetch urgent cases from the summary of call outcomes
+        const urgentItem = summary.outcomeBarData?.find(item => item.name === 'Urgent Case');
+        const urgentCasesCount = urgentItem?.count || 0;
+        const urgentCasesCallIds = urgentItem?.callIds || [];
+
+        const avgDuration = generalCount > 0 ? Math.round(generalDuration / generalCount) : 30;
+
+        urgentCount = urgentCasesCount;
+        urgentDuration = urgentCasesCount * avgDuration;
+        urgentIds.push(...urgentCasesCallIds);
 
         return {
           totalReservationCalls: summary.totalCalls,
           securedBookings: { count: generalCount, duration: generalDuration, callIds: generalIds },
-          largePartyBookings: { count: specialistCount, duration: specialistDuration, callIds: specialistIds },
-          promotionalBookings: { count: followupCount, duration: followupDuration, callIds: followupIds },
+          urgentBookings: { count: urgentCount, duration: urgentDuration, callIds: urgentIds },
+          largePartyBookings: { count: 0, duration: 0, callIds: [] },
+          promotionalBookings: { count: 0, duration: 0, callIds: [] },
         };
       })()
     };

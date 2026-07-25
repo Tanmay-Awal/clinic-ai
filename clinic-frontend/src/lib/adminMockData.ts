@@ -43,12 +43,12 @@ export interface OrgUser {
 export const currentUser = {
     id: 'u1',
     name: 'Rahul Sharma',
-    email: 'rahul@Convo.com',
+    email: 'rahul@clinicall.com',
     role: 'admin' as UserRole,
 };
 
 export const mockOrganisation: OrganisationSettings = {
-    organisation_name: 'Convo Demo Organisation',
+    organisation_name: 'CliniCall Demo Organisation',
     business_type: 'Hotel',
     default_timezone: 'Asia/Kolkata',
     default_language: 'en',
@@ -63,7 +63,7 @@ export const mockUsers: OrgUser[] = [
     {
         id: 'u1',
         name: 'Rahul Sharma',
-        email: 'rahul@Convo.com',
+        email: 'rahul@clinicall.com',
         role: 'admin',
         status: 'active',
         lastLogin: '2025-01-05T14:45:00.000Z',
@@ -71,7 +71,7 @@ export const mockUsers: OrgUser[] = [
     {
         id: 'u2',
         name: 'Priya Patel',
-        email: 'priya@Convo.com',
+        email: 'priya@clinicall.com',
         role: 'viewer',
         status: 'active',
         lastLogin: '2025-01-04T22:15:00.000Z',
@@ -79,7 +79,7 @@ export const mockUsers: OrgUser[] = [
     {
         id: 'u3',
         name: 'Amit Kumar',
-        email: 'amit@Convo.com',
+        email: 'amit@clinicall.com',
         role: 'viewer',
         status: 'active',
         lastLogin: '2025-01-03T16:50:00.000Z',
@@ -87,7 +87,7 @@ export const mockUsers: OrgUser[] = [
     {
         id: 'u4',
         name: 'Sneha Gupta',
-        email: 'sneha@Convo.com',
+        email: 'sneha@clinicall.com',
         role: 'viewer',
         status: 'invited',
         lastLogin: null,

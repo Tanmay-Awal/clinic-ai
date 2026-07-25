@@ -96,12 +96,66 @@ export class CallService {
   }
 
   async getAllCalls(dto: any = {}) {
-    const { page = 1, limit = 10, search, category, sort_by = 'created_at', sort_order = 'DESC' } = dto;
+    const { page = 1, limit = 10, search, category, sort_by = 'created_at', sort_order = 'DESC', call_ids } = dto;
     const query = this.callRepository.createQueryBuilder('call')
-      .leftJoinAndSelect('call.callAnalysis', 'callAnalysis');
+      .leftJoinAndSelect('call.callAnalysis', 'callAnalysis')
+      .leftJoinAndSelect('call.appointment', 'appointment');
 
-    if (category) {
+    if (category && category !== 'Reservation' && category !== 'Feedback') {
       query.andWhere('call.category = :category', { category });
+    }
+
+    if (dto.startDate) {
+      query.andWhere('call.call_start_time >= :startDate', { startDate: new Date(dto.startDate) });
+    }
+    if (dto.endDate) {
+      query.andWhere('call.call_start_time <= :endDate', { endDate: new Date(dto.endDate) });
+    }
+
+    if (call_ids && Array.isArray(call_ids) && call_ids.length > 0) {
+      query.andWhere('call.id IN (:...call_ids)', { call_ids: call_ids.map(Number) });
+    } else if (call_ids && typeof call_ids === 'string') {
+      const idsArray = call_ids.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
+      if (idsArray.length > 0) {
+        query.andWhere('call.id IN (:...call_ids)', { call_ids: idsArray });
+      }
+    } else if (dto.outcome) {
+      const normalizedOutcome = dto.outcome.trim().toLowerCase();
+      if (normalizedOutcome === 'urgent case' || normalizedOutcome === 'urgent') {
+        query.andWhere('(call.category = :emergencyCat OR call.transfer_to_human = :transfer)', {
+          emergencyCat: 'Emergency',
+          transfer: true
+        });
+      } else if (normalizedOutcome === 'action required' || normalizedOutcome === 'action') {
+        query.andWhere(qb => {
+          const subQuery = qb.subQuery()
+            .select('action.call_id')
+            .from(Action, 'action')
+            .where("action.status = 'Open'")
+            .getQuery();
+          return `call.id IN ${subQuery}`;
+        });
+      } else if (normalizedOutcome === 'appointment booked' || normalizedOutcome === 'booked') {
+        query.andWhere('call.appointment_created = :created', { created: true });
+      } else if (normalizedOutcome === 'booking cancelled' || normalizedOutcome === 'cancelled') {
+        query.andWhere('call.category = :cancelCat', { cancelCat: 'Cancellation' });
+      } else if (normalizedOutcome === 'reschedule requested' || normalizedOutcome === 'rescheduled') {
+        query.andWhere('call.category = :rescheduleCat', { rescheduleCat: 'Rescheduling' });
+      } else if (normalizedOutcome === 'enquiry handled' || normalizedOutcome === 'inquiry') {
+        query.andWhere('call.category = :inquiryCat', { inquiryCat: 'Inquiry' });
+      } else if (normalizedOutcome === 'general assistance' || normalizedOutcome === 'general') {
+        query.andWhere('call.category NOT IN (:...excludeCats)', { excludeCats: ['Emergency', 'Cancellation', 'Rescheduling', 'Inquiry'] })
+             .andWhere('call.appointment_created = :createdFalse', { createdFalse: false })
+             .andWhere('call.transfer_to_human = :transferFalse', { transferFalse: false })
+             .andWhere(qb => {
+               const subQuery = qb.subQuery()
+                 .select('action.call_id')
+                 .from(Action, 'action')
+                 .where("action.status = 'Open'")
+                 .getQuery();
+               return `call.id NOT IN ${subQuery}`;
+             });
+      }
     }
 
     if (search) {
@@ -130,6 +184,8 @@ export class CallService {
         sentiment: call.callAnalysis?.user_sentiment || 'Neutral',
         category: call.category,
         sub_category: call.sub_category,
+        name: call.appointment?.patient_name || call.callAnalysis?.name || null,
+        display_mobile_number: call.from_number || call.callAnalysis?.contact_number || null,
       })),
       pagination: {
         page: Number(page),
@@ -145,7 +201,7 @@ export class CallService {
   async getCallById(id: number) {
     const call = await this.callRepository.findOne({
       where: { id },
-      relations: ['callAnalysis'],
+      relations: ['callAnalysis', 'appointment'],
     });
 
     if (!call) {
@@ -158,6 +214,7 @@ export class CallService {
       call_direction: call.call_direction,
       from_number: call.from_number,
       to_number: 'Clinic',
+      display_mobile_number: call.from_number || call.callAnalysis?.contact_number || null,
       call_duration_ms: call.call_duration_ms || 0,
       call_start_time: call.call_start_time,
       call_end_time: call.call_end_time,
@@ -166,8 +223,15 @@ export class CallService {
       created_at: call.created_at,
       transcripts: call.transcript || [],
       analysis: {
+        id: call.callAnalysis?.id?.toString() || '',
+        call_id: call.id?.toString(),
         call_summary: call.callAnalysis?.call_summary || '',
         user_sentiment: call.callAnalysis?.user_sentiment || '',
+        call_successful: call.callAnalysis?.call_successful || false,
+        name: call.appointment?.patient_name || call.callAnalysis?.name || null,
+        location: call.callAnalysis?.location || null,
+        contact_number: call.from_number || call.callAnalysis?.contact_number || null,
+        sentiment_percentage: call.callAnalysis?.sentiment_percentage || null,
         category: call.category,
         sub_category: call.sub_category,
         key_insights: [], // Still missing from entity, leave empty array for now

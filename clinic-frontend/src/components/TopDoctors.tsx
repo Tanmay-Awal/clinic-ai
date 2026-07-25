@@ -16,6 +16,7 @@ interface TopDoctorsProps {
 export default function TopDoctors({ doctors = [], dateRangeLabel = 'Selected Range' }: TopDoctorsProps) {
   // Take top 5 doctors
   const displayDoctors = doctors.slice(0, 5);
+  const maxPatients = Math.max(...displayDoctors.map(d => d.patientCount), 1);
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 card-glow card-shine h-full flex flex-col relative overflow-hidden">
@@ -36,43 +37,57 @@ export default function TopDoctors({ doctors = [], dateRangeLabel = 'Selected Ra
 
       <div className="flex-1 relative z-10 space-y-3">
         {displayDoctors.length > 0 ? (
-          displayDoctors.map((doc, idx) => (
-            <motion.div
-              key={`${doc.name}-${idx}`}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: idx * 0.1, duration: 0.3 }}
-              className="group relative rounded-xl border border-border bg-gradient-to-r from-card to-card/50 p-4 transition-all duration-300 hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/5"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-colors">
-                    <User className="h-5 w-5 text-cyan-500" />
+          displayDoctors.map((doc, idx) => {
+            const percentage = Math.max((doc.patientCount / maxPatients) * 100, 5);
+            return (
+              <motion.div
+                key={`${doc.name}-${idx}`}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.1, duration: 0.3 }}
+                className="group relative rounded-xl border border-border bg-gradient-to-r from-card to-card/50 p-4 transition-all duration-300 hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/5"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-colors">
+                      <User className="h-5 w-5 text-cyan-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground group-hover:text-cyan-400 transition-colors">
+                        {doc.name}
+                      </h4>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                        {doc.specialization}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-foreground group-hover:text-cyan-400 transition-colors">
-                      {doc.name}
-                    </h4>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      {doc.specialization}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex flex-col items-end">
-                  <div className="flex items-baseline gap-1.5 bg-secondary/50 px-3 py-1.5 rounded-lg border border-border/50 group-hover:border-cyan-500/20 transition-colors">
-                    <Users className="h-3.5 w-3.5 text-muted-foreground group-hover:text-cyan-400 transition-colors" />
-                    <span className="text-sm font-bold text-foreground tabular-nums group-hover:text-cyan-400 transition-colors">
-                      {doc.patientCount}
+                  
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-baseline gap-1.5 bg-secondary/50 px-3 py-1.5 rounded-lg border border-border/50 group-hover:border-cyan-500/20 transition-colors">
+                      <Users className="h-3.5 w-3.5 text-muted-foreground group-hover:text-cyan-400 transition-colors" />
+                      <span className="text-sm font-bold text-foreground tabular-nums group-hover:text-cyan-400 transition-colors">
+                        {doc.patientCount}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider mr-1">
+                      Patients
                     </span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider mr-1">
-                    Patients
-                  </span>
                 </div>
-              </div>
-            </motion.div>
-          ))
+
+                {/* Progress bar background */}
+                <div className="h-2 w-full bg-secondary/50 rounded-full overflow-hidden">
+                  {/* Animated fill */}
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${percentage}%` }}
+                    transition={{ duration: 0.8, delay: 0.2 + (idx * 0.1), ease: "easeOut" }}
+                    className="h-full bg-gradient-to-r from-cyan-500/60 to-cyan-400 rounded-full group-hover:shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-shadow"
+                  />
+                </div>
+              </motion.div>
+            );
+          })
         ) : (
           <div className="flex h-[200px] flex-col items-center justify-center text-center">
             <Stethoscope className="h-8 w-8 text-muted-foreground/30 mb-3" />

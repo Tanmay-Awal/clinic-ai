@@ -36,7 +36,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center border-b border-border px-6">
-            <img src="/logo.png" alt="Convo Logo" className="h-5 w-auto" />
+            <img src="/logo.png" alt="CliniCall Logo" className="h-5 w-auto" />
 
           </div>
 

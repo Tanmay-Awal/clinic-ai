@@ -40,6 +40,15 @@ export class Action {
   @Column({ type: 'text', nullable: true })
   notes: string;
 
+  @Column({ type: 'text', nullable: true })
+  comments: string;
+
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  comments_updated_at: Date;
+
+  @Column({ type: 'text', nullable: true })
+  resolution_notes: string;
+
   @Column({ type: 'int', default: 1 })
   repeat_count: number;
 

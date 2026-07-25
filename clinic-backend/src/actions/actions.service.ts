@@ -19,16 +19,21 @@ export class ActionsService {
     const createdTime = new Date(action.created_at).getTime();
     const due_at = new Date(createdTime + addHours * 60 * 60 * 1000).toISOString();
     
+    const guest_name = action.call?.appointment?.patient_name || action.call?.callAnalysis?.name || null;
+    
     return {
       ...action,
       due_at,
+      guest_name,
       is_overdue: action.status !== 'Resolved' && new Date() > new Date(due_at)
     };
   }
 
   async getActions(filters?: any): Promise<{data: any[]; pagination: {page: number; limit: number; total: number; totalPages: number}}> {
     const query = this.actionRepository.createQueryBuilder('action')
-      .leftJoinAndSelect('action.call', 'call');
+      .leftJoinAndSelect('action.call', 'call')
+      .leftJoinAndSelect('call.callAnalysis', 'callAnalysis')
+      .leftJoinAndSelect('call.appointment', 'appointment');
 
     if (filters?.status && filters.status !== 'all') {
       query.andWhere('action.status ILIKE :status', { status: filters.status });
@@ -127,7 +132,7 @@ export class ActionsService {
   async getActionById(id: number): Promise<any> {
     const action = await this.actionRepository.findOne({
       where: { id },
-      relations: ['call', 'call.callAnalysis', 'resolved_by'],
+      relations: ['call', 'call.callAnalysis', 'call.appointment', 'resolved_by'],
     });
     if (!action) throw new NotFoundException('Action not found');
     const mapped: any = this.mapActionWithDueAt(action);
@@ -149,6 +154,7 @@ export class ActionsService {
   async getActionsByCallId(callId: number): Promise<any[]> {
     const actions = await this.actionRepository.find({
       where: { call_id: callId },
+      relations: ['call', 'call.callAnalysis', 'call.appointment'],
       order: { created_at: 'DESC' }
     });
     return actions.map(a => this.mapActionWithDueAt(a));
@@ -160,6 +166,10 @@ export class ActionsService {
     if (data.status === 'Resolved' && action.status !== 'Resolved') {
       data.resolved_at = new Date();
       if (userId) data.resolved_by_id = userId;
+    }
+
+    if (data.comments !== undefined && data.comments !== action.comments) {
+      data.comments_updated_at = new Date();
     }
 
     await this.actionRepository.update(id, data);

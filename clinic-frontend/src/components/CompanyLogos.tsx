@@ -8,7 +8,7 @@ export const CompanyLogos: React.FC = () => {
     '/assets/company-logo/royal.webp',
     '/assets/company-logo/orufy.svg',
     '/assets/company-logo/dgc.png',
-    '/assets/company-logo/Convo.png',
+    '/logo.png',
     '/assets/company-logo/be_logo_color.png',
   ];
 

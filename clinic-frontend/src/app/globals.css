@@ -17,7 +17,7 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Convo Pure B/W Theme - Strict Monochrome (Light Mode) */
+    /* CliniCall Pure B/W Theme - Strict Monochrome (Light Mode) */
     --background: 0 0% 98%;
     /* #FAFAFA - pure white base */
     --foreground: 0 0% 9%;
@@ -82,7 +82,7 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* Convo Pure B/W Theme - Strict Monochrome (Dark Mode) */
+    /* CliniCall Pure B/W Theme - Strict Monochrome (Dark Mode) */
     --background: 0 0% 4%;
     /* #0A0A0A - pure black base */
     --foreground: 0 0% 98%;

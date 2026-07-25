@@ -44,20 +44,32 @@ export default function TopDiseases({ diseases = [], dateRangeLabel = 'Selected 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1, duration: 0.3 }}
-                className="group relative"
+                className="group relative rounded-xl border border-border bg-gradient-to-r from-card to-card/50 p-4 transition-all duration-300 hover:border-rose-500/30 hover:shadow-lg hover:shadow-rose-500/5"
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <Thermometer className="h-3.5 w-3.5 text-muted-foreground group-hover:text-rose-400 transition-colors" />
-                    <span className="text-sm font-medium text-foreground group-hover:text-rose-400 transition-colors">
-                      {disease.name}
-                    </span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20 group-hover:bg-rose-500/20 transition-colors">
+                      <Thermometer className="h-5 w-5 text-rose-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground group-hover:text-rose-400 transition-colors">
+                        {disease.name}
+                      </h4>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                        Condition
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-foreground tabular-nums group-hover:text-rose-400 transition-colors">
-                      {disease.count}
+                  
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-baseline gap-1.5 bg-secondary/50 px-3 py-1.5 rounded-lg border border-border/50 group-hover:border-rose-500/20 transition-colors">
+                      <span className="text-sm font-bold text-foreground tabular-nums group-hover:text-rose-400 transition-colors">
+                        {disease.count}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider mr-1">
+                      Cases
                     </span>
-                    <ChevronRight className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
                   </div>
                 </div>
                 
