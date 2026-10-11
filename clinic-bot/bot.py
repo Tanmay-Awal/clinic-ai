@@ -3,7 +3,7 @@ import os
 import sys
 import json
 import time
-from datetime import datetime as dt
+from datetime import datetime as dt, timezone, timedelta
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from fastapi import WebSocket
@@ -17,6 +17,7 @@ from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.serializers.twilio import TwilioFrameSerializer
+from pipecat.serializers.exotel import ExotelFrameSerializer
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.services.deepgram.stt import DeepgramSTTService
@@ -29,7 +30,7 @@ from pipecat.frames.frames import (
     OutputAudioRawFrame, InputAudioRawFrame
 )
 import wave
-from pipecat_flows import FlowManager, NodeConfig, FlowsFunctionSchema, FlowArgs
+from pipecat.flows import FlowManager, NodeConfig, FlowsFunctionSchema, FlowArgs
 from tools import get_clinic_context, get_doctors, get_available_slots, book_appointment, ingest_call
 from runtime import (
     classify_intent,
@@ -88,9 +89,10 @@ class RotatedGroqLLMService(OpenAILLMService):
     def _switch_to_groq(self):
         from openai import AsyncOpenAI
         logger.info("Restoring Groq as primary LLM service...")
-        self.model_name = "llama-3.3-70b-versatile"
+        model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+        self.model_name = model
         if hasattr(self, '_model'):
-            self._model = "llama-3.3-70b-versatile"
+            self._model = model
         next_key = self.api_keys[self.current_key_idx]
         if hasattr(self, '_async_client'):
             self._async_client = AsyncOpenAI(api_key=next_key, base_url="https://api.groq.com/openai/v1")
@@ -1183,12 +1185,19 @@ confirm_reschedule_func = FlowsFunctionSchema(
 # ==================== MAIN PIPELINE ====================
 
 async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, caller_phone: str = "Unknown", testing: bool = False):
-    serializer = TwilioFrameSerializer(
-        stream_sid=stream_sid,
-        call_sid=call_sid,
-        account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
-        auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
-    )
+    if os.getenv("EXOTEL_API_KEY") and os.getenv("EXOTEL_API_TOKEN"):
+        logger.info(f"Using ExotelFrameSerializer for stream {stream_sid}")
+        serializer = ExotelFrameSerializer(
+            stream_sid=stream_sid,
+            call_sid=call_sid,
+        )
+    else:
+        serializer = TwilioFrameSerializer(
+            stream_sid=stream_sid,
+            call_sid=call_sid,
+            account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
+            auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),
+        )
 
     transport = FastAPIWebsocketTransport(
         websocket=websocket_client,
@@ -1217,7 +1226,8 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
         raise RuntimeError("No Groq API Keys loaded.")
 
     logger.info(f"Loaded {len(groq_keys)} Groq API Keys for dynamic rotation.")
-    llm = RotatedGroqLLMService(api_keys=groq_keys, base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile")
+    groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    llm = RotatedGroqLLMService(api_keys=groq_keys, base_url="https://api.groq.com/openai/v1", model=groq_model)
 
     context = LLMContext(messages=[])
     context_aggregator = LLMContextAggregatorPair(context)
@@ -1290,7 +1300,10 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
         call_info["start_time"] = dt.utcnow().isoformat() + "Z"
         update_stage(runtime_state, "greeting")
 
-        ist_time = dt.now(ZoneInfo("Asia/Kolkata"))
+        try:
+            ist_time = dt.now(ZoneInfo("Asia/Kolkata"))
+        except Exception:
+            ist_time = dt.now(timezone(timedelta(hours=5, minutes=30)))
         hour = ist_time.hour
         if hour < 12:
             time_of_day = "Morning"
@@ -1302,7 +1315,7 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
         greeting = f"Good {time_of_day}, this is {CLINIC_NAME}. I'm Saloni. How can I help you today?"
         runtime_state["last_bot_text"] = greeting
         await task.queue_frames([TTSSpeakFrame(greeting)])
-        await task.queue_frames([LLMMessagesAppendFrame(messages=[{"role": "assistant", "content": greeting}])])
+        context.add_message({"role": "assistant", "content": greeting})
 
     ingested = False
 

@@ -29,7 +29,7 @@ export class CsrfTokenInterceptor implements NestInterceptor {
       response.cookie('XSRF-TOKEN', csrfToken, {
         httpOnly: false, // Must be readable by JavaScript for double-submit pattern
         secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
     }

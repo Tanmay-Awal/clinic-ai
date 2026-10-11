@@ -28,7 +28,7 @@ import { useOrganisationSettings } from '@/hooks/useOrganisationSettings';
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:3021/api';
+  'http://localhost:3001/api';
 
 // Helper function to normalize recording URL
 // If it's an ElevenLabs recording path, construct full URL with API base
@@ -89,18 +89,39 @@ export default function CallDetail({ params }: { params: Promise<{ callId: strin
   // Memoize to prevent recalculation on every render
   const utterances = useMemo(() => {
     if (!call?.transcripts) return [];
+
+    let parsedList: any[] = [];
+    if (Array.isArray(call.transcripts)) {
+      parsedList = call.transcripts;
+    } else if (typeof call.transcripts === 'string') {
+      try {
+        parsedList = JSON.parse(call.transcripts);
+      } catch (e) {
+        parsedList = [];
+      }
+    }
+
+    if (!Array.isArray(parsedList)) return [];
+
     const callStartMs = call.call_start_time ? new Date(call.call_start_time).getTime() : 0;
-    return call.transcripts.map((t, index) => {
+    return parsedList.map((t, index) => {
       let timestamp: number;
-      if (t.created_at && callStartMs) {
+      if (typeof t.timestamp === 'number') {
+        timestamp = t.timestamp;
+      } else if (t.created_at && callStartMs) {
         timestamp = Math.max(0, (new Date(t.created_at).getTime() - callStartMs) / 1000);
       } else {
-        timestamp = index * 3;
+        timestamp = index * 4;
       }
+
+      const role = String(t.role || t.speaker || 'user').toLowerCase();
+      const isBot = role === 'agent' || role === 'assistant' || role === 'bot' || role === 'ai';
+      const dialogueText = t.text || t.transcript || t.content || t.message || (typeof t === 'string' ? t : '');
+
       return {
-        speaker: (t.role === 'agent' || t.role === 'assistant' ? 'bot' : 'caller') as 'caller' | 'bot',
-        text: t.transcript,
-        timestamp,
+        speaker: (isBot ? 'bot' : 'caller') as 'caller' | 'bot',
+        text: String(dialogueText).trim(),
+        timestamp: typeof timestamp === 'number' && !isNaN(timestamp) ? timestamp : index * 4,
         confidence: 1,
         has_redaction: false,
       };
@@ -116,10 +137,13 @@ export default function CallDetail({ params }: { params: Promise<{ callId: strin
     return Math.floor(durationMs / 1000);
   }, [call?.call_duration_ms]);
 
-  // Format duration for display
-  const formatDuration = useCallback((seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+  const formatDuration = useCallback((seconds: number | string | null | undefined) => {
+    if (seconds === null || seconds === undefined) return '0:00';
+    const num = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
+    if (!num || Number.isNaN(num)) return '0:00';
+    const totalSecs = Math.round(num);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
@@ -401,7 +425,7 @@ export default function CallDetail({ params }: { params: Promise<{ callId: strin
 
             {/* Linked Actions */}
             {(() => {
-              const actions = (call.linked_actions && call.linked_actions.length > 0)
+              const actions = (call.linked_actions && Array.isArray(call.linked_actions) && call.linked_actions.length > 0)
                 ? call.linked_actions.map((la: any) => ({
                     id: la.id,
                     status: la.status as ActionStatus,
@@ -409,7 +433,7 @@ export default function CallDetail({ params }: { params: Promise<{ callId: strin
                     priority: la.priority as ActionPriority,
                     meta: `Created ${formatDateInTimezone(parseTimestampAsUtc(la.created_at), { day: '2-digit', month: 'short', year: 'numeric' }, displayTimezone)}`,
                   }))
-                : callActionsData?.actions?.length
+                : (callActionsData?.actions && Array.isArray(callActionsData.actions) && callActionsData.actions.length > 0)
                   ? callActionsData.actions.map((a: any) => ({
                       id: a.id,
                       status: a.status,

@@ -58,54 +58,52 @@ export class DashboardService {
     const actionCallIds = new Set(callsWithActions.map(a => Number(a.call_id)));
 
     let urgent = 0;
+    let actionReq = 0;
+    let booked = 0;
+    let cancelled = 0;
+    let rescheduled = 0;
     let inquiry = 0;
     let general = 0;
+
     const urgentIds: string[] = [];
+    const actionReqIds: string[] = [];
+    const bookedIds: string[] = [];
+    const cancelledIds: string[] = [];
+    const rescheduledIds: string[] = [];
     const inquiryIds: string[] = [];
     const generalIds: string[] = [];
 
     for (const call of callsWithAnalysis) {
-      const cat = call.category;
-      if (cat === 'Emergency' || call.transfer_to_human) {
+      const cat = call.category || '';
+      const callIdStr = call.id.toString();
+
+      if (cat === 'Urgent Symptom Triage' || cat === 'Emergency' || call.transfer_to_human) {
         urgent++;
-        urgentIds.push(call.id.toString());
+        urgentIds.push(callIdStr);
+      } else if (call.appointment_created || cat === 'Booking Inquiry' || cat === 'Booking') {
+        booked++;
+        bookedIds.push(callIdStr);
       } else if (actionCallIds.has(Number(call.id))) {
-        // Skip, handled independently
-      } else if (call.appointment_created) {
-        // Skip, handled independently
-      } else if (cat === 'Cancellation') {
-        // Skip, handled independently
-      } else if (cat === 'Rescheduling') {
-        // Skip, handled independently
-      } else if (cat === 'Inquiry') {
+        actionReq++;
+        actionReqIds.push(callIdStr);
+      } else if (cat === 'Appointment Cancellation' || cat === 'Cancellation') {
+        cancelled++;
+        cancelledIds.push(callIdStr);
+      } else if (cat === 'Reschedule Request' || cat === 'Rescheduling') {
+        rescheduled++;
+        rescheduledIds.push(callIdStr);
+      } else if (cat === 'General Medical Question' || cat === 'Inquiry' || cat === 'Enquiry') {
         inquiry++;
-        inquiryIds.push(call.id.toString());
+        inquiryIds.push(callIdStr);
       } else {
         general++;
-        generalIds.push(call.id.toString());
+        generalIds.push(callIdStr);
       }
     }
 
-    const openActions = await this.actionRepository.find({ where: { status: 'Open', ...actionDateFilter } });
-    const actionReqIds = openActions.map(a => a.call_id?.toString()).filter(Boolean);
-
-    const bookedApts = await this.appointmentRepository.find({ where: { status: 'booked', ...appointmentDateFilter } });
-    const bookedIds = bookedApts.map(a => a.created_from_call_id?.toString()).filter(Boolean);
-
-    const cancelledApts = await this.appointmentRepository.find({ where: { status: 'cancelled', ...appointmentDateFilter } });
-    const cancelledIds = cancelledApts.map(a => a.created_from_call_id?.toString()).filter(Boolean);
-
-    const rescheduledApts = await this.appointmentRepository.find({ where: { status: 'rescheduled', ...appointmentDateFilter } });
-    const rescheduledIds = rescheduledApts.map(a => a.created_from_call_id?.toString()).filter(Boolean);
-
-    const actionReq = actionReqIds.length;
-    const booked = bookedApts.length;
-    const cancelled = cancelledApts.length;
-    const rescheduled = rescheduledApts.length;
-
     const outcomeBarDataArray = [
       { name: 'Urgent Case', count: urgent, callIds: urgentIds },
-      { name: 'Action Required', count: urgentIds.length > 0 ? actionReq - urgentIds.length : actionReq, callIds: actionReqIds.filter(id => !urgentIds.includes(id)) }, // Prevent double counting actions that are already in Emergency calls
+      { name: 'Action Required', count: actionReq, callIds: actionReqIds },
       { name: 'Appointment Booked', count: booked, callIds: bookedIds },
       { name: 'Booking Cancelled', count: cancelled, callIds: cancelledIds },
       { name: 'Reschedule Requested', count: rescheduled, callIds: rescheduledIds },

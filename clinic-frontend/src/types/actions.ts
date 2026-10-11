@@ -10,6 +10,7 @@ export type ActionRequestType =
     | 'complaint'
     | 'reschedule_request'
     | 'cancellation_request'
+    | 'misc'
     | 'other';
 
 // Label mapping for display — used in badges and filters
@@ -44,6 +45,7 @@ export interface ActionListItem {
     created_at: string;
     guest_name: string | null;
     phone_number: string;           // masked: ******9141
+    caller_phone?: string;
     request_type: ActionRequestType;
     request_type_label: string;     // from action_config.label
     priority: ActionPriority;
@@ -52,6 +54,7 @@ export interface ActionListItem {
     due_at: string;
     is_overdue: boolean;            // computed: due_at < now() && status != 'resolved'
     notes: string | null;
+    description?: string | null;
     comments?: string | null;
     comments_updated_at?: string | null;
     resolved_at: string | null;

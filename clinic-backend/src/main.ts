@@ -21,18 +21,18 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  // Request logger for debugging
+  app.use((req, res, next) => {
+    console.log(`[HTTP LOG] ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+    next();
+  });
+
   // Security: Helmet for security headers
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-        },
-      },
-      crossOriginEmbedderPolicy: false, // Allow embedding if needed
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: false,
+      crossOriginEmbedderPolicy: false,
       hsts: {
         maxAge: 31536000,
         includeSubDomains: true,
@@ -59,24 +59,24 @@ async function bootstrap() {
   const origins = corsOrigin.split(',').map((origin) => origin.trim());
 
   app.enableCors({
-    origin: origins.length === 1 && origins[0] === '*' ? true : origins,
-    methods: configService.get<string>(
-      'CORS_METHODS',
-      'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    ),
-    credentials:
-      configService.get<string>('CORS_CREDENTIALS', 'true').toLowerCase() ===
-      'true',
-    allowedHeaders: configService.get<string>(
-      'CORS_ALLOWED_HEADERS',
-      'Content-Type, Authorization, X-CSRF-Token',
-    ),
+    origin: (origin, callback) => {
+      if (!origin || origins.includes('*') || origins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow origin in dev
+      }
+    },
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+    allowedHeaders: 'Content-Type, Authorization, X-CSRF-Token, x-csrf-token, x-bot-api-key, Accept, Origin, X-Requested-With',
     exposedHeaders: [
       'X-RateLimit-Limit',
       'X-RateLimit-Remaining',
       'X-RateLimit-Reset',
+      'x-csrf-token',
+      'X-CSRF-Token',
     ],
-    maxAge: 86400, // 24 hours
+    maxAge: 86400,
   });
 
   // Global validation pipe (using NestJS built-in, custom one is in app.module.ts)

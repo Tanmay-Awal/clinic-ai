@@ -112,7 +112,7 @@ import { UserInteractionModule } from './user-interaction/user-interaction.modul
         UserAgent,
         Agent,
       ],
-      synchronize: false,
+      synchronize: true,
       logging: process.env.NODE_ENV === 'development',
       extra: {
         max: parseInt(process.env.DB_POOL_MAX || '2'),

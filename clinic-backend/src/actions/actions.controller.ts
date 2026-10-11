@@ -22,6 +22,11 @@ export class ActionsController {
     return this.actionsService.getStats(body);
   }
 
+  @Get('by-call/:callId')
+  async getActionsByCallId(@Param('callId') callId: string) {
+    return this.actionsService.getActionsByCallId(parseInt(callId, 10));
+  }
+
   @Get(':id')
   async getActionById(@Param('id') id: string) {
     return this.actionsService.getActionById(parseInt(id, 10));

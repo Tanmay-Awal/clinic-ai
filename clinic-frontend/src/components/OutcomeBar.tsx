@@ -40,7 +40,11 @@ const getFallbackColor = (idx: number): string => {
 };
 
 export default function OutcomeBar({ data, totalCalls, onSegmentClick }: OutcomeBarProps) {
-    if (!data || data.length === 0 || totalCalls === 0) return null;
+    if (!data || data.length === 0) return null;
+
+    const sumSegments = data.reduce((acc, curr) => acc + (curr.count || 0), 0);
+    const displayTotalCalls = totalCalls && totalCalls >= sumSegments ? totalCalls : sumSegments;
+    if (displayTotalCalls === 0) return null;
 
     const activeSegments = data.filter(d => d.count > 0);
 
@@ -50,7 +54,7 @@ export default function OutcomeBar({ data, totalCalls, onSegmentClick }: Outcome
                 <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Call Outcomes</h3>
                     <p className="text-3xl font-semibold tracking-tight">
-                        {totalCalls.toLocaleString()}{' '}
+                        {displayTotalCalls.toLocaleString()}{' '}
                         <span className="text-lg text-muted-foreground font-normal">total calls</span>
                     </p>
                 </div>
@@ -59,7 +63,7 @@ export default function OutcomeBar({ data, totalCalls, onSegmentClick }: Outcome
             {/* Stacked bar */}
             <div className="h-4 w-full flex rounded-full overflow-hidden mb-6 bg-secondary/50">
                 {activeSegments.map((segment, idx) => {
-                    const widthPct = (segment.count / totalCalls) * 100;
+                    const widthPct = (segment.count / displayTotalCalls) * 100;
                     const bgColor = SEGMENT_COLORS[segment.name] ?? getFallbackColor(idx);
                     return (
                         <motion.button
@@ -81,7 +85,7 @@ export default function OutcomeBar({ data, totalCalls, onSegmentClick }: Outcome
             {/* Legend */}
             <div className="flex flex-wrap gap-x-6 gap-y-3">
                 {data.map((segment, idx) => {
-                    const pct = totalCalls > 0 ? ((segment.count / totalCalls) * 100).toFixed(1) : '0.0';
+                    const pct = displayTotalCalls > 0 ? ((segment.count / displayTotalCalls) * 100).toFixed(1) : '0.0';
                     const bgColor = SEGMENT_COLORS[segment.name] ?? getFallbackColor(idx);
                     return (
                         <button

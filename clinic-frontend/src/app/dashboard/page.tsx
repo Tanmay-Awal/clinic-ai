@@ -522,8 +522,9 @@ export default function Dashboard() {
       rows.push(['Metric', 'Value'].map(formatCSVValue));
       rows.push(['Total Appointments Booked', String(reservationKPIs.totalBookingsCaptured)].map(formatCSVValue));
       rows.push(['Appointments %', reservationKPIs.confirmedPercentage + '%'].map(formatCSVValue));
-      const mins = Math.floor(reservationKPIs.avgTime / 60);
-      const secs = reservationKPIs.avgTime % 60;
+      const totalSecsAvg = Math.round(reservationKPIs.avgTime);
+      const mins = Math.floor(totalSecsAvg / 60);
+      const secs = totalSecsAvg % 60;
       rows.push(['Avg Time', `${mins}:${secs.toString().padStart(2, '0')}`].map(formatCSVValue));
       rows.push(['Avg Group Size', String(reservationKPIs.avgPartySize)].map(formatCSVValue));
       rows.push([]);
@@ -1813,7 +1814,7 @@ export default function Dashboard() {
                   <div className="p-4 rounded-lg border border-border bg-card/50">
                     <div className="text-xs text-muted-foreground mb-1">Avg Time</div>
                     <div className="text-2xl font-semibold text-foreground">
-                      {Math.floor(reservationKPIs.avgTime / 60)}:{(reservationKPIs.avgTime % 60).toString().padStart(2, '0')}
+                      {Math.floor(Math.round(reservationKPIs.avgTime) / 60)}:{(Math.round(reservationKPIs.avgTime) % 60).toString().padStart(2, '0')}
                     </div>
                   </div>
                 )}

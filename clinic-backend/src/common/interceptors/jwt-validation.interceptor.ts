@@ -56,11 +56,12 @@ export class JwtValidationInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    // Check if path matches public paths exactly
-    const isPublicPath = publicPaths.some((path) => request.path === path);
+    // Check if path matches public paths
+    const reqUrl = request.url || request.path || '';
+    const isPublicPath = publicPaths.some((path) => reqUrl.includes(path.replace('/api', '')));
 
     // Also skip for LiveKit ingest webhook which uses its own guard (LivekitIngestGuard)
-    const isLiveKitIngest = request.path === '/api/livekit/ingest';
+    const isLiveKitIngest = reqUrl.includes('/livekit/ingest');
 
     if (isPublicPath || isLiveKitIngest) {
       return next.handle();

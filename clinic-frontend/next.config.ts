@@ -52,14 +52,8 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: https:",
               "font-src 'self' data:",
               // Allow media from blob URLs, CloudFront, ElevenLabs, localhost API (dev), and HTTPS sources
-              process.env.NODE_ENV === 'development'
-                ? "media-src 'self' blob: https://*.cloudfront.net https://api.elevenlabs.io http://localhost:* https:"
-                : "media-src 'self' blob: https://*.cloudfront.net https://api.elevenlabs.io https:",
-              // Allow connections to same origin, HTTPS, and localhost for development
-              // In production, you should use HTTPS only
-              process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* blob:"
-                : "connect-src 'self' https: blob:",
+              "media-src 'self' blob: https://*.cloudfront.net https://api.elevenlabs.io http://localhost:* http://127.0.0.1:* https:",
+              "connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* blob:",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

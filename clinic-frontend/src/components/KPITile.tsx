@@ -77,10 +77,12 @@ export default function KPITile({
     switch (format) {
       case 'percent':
         return `${val.toFixed(1)}%`;
-      case 'duration':
-        const mins = Math.floor(val / 60);
-        const secs = val % 60;
+      case 'duration': {
+        const totalSecs = Math.round(val);
+        const mins = Math.floor(totalSecs / 60);
+        const secs = totalSecs % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+      }
       case 'score':
         return val.toFixed(2);
       default:

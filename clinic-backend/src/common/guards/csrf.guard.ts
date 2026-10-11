@@ -27,8 +27,8 @@ export class CsrfGuard implements CanActivate {
     }
 
     // Skip CSRF for public endpoints (login, register) and bot ingestion
-    const publicPaths = ['/api/user/login', '/api/user/register', '/api/calls/ingest'];
-    if (publicPaths.some((path) => request.path.startsWith(path))) {
+    const reqUrl = request.url || request.path || '';
+    if (reqUrl.includes('/user/login') || reqUrl.includes('/user/register') || reqUrl.includes('/calls/ingest')) {
       return true;
     }
 

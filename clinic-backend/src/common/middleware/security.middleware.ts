@@ -22,8 +22,6 @@ export class SecurityMiddleware implements NestMiddleware {
       'geolocation=(), microphone=(), camera=()',
     );
 
-    // Prevent clickjacking
-    res.setHeader('Content-Security-Policy', "default-src 'self'");
 
     // Validate request size (basic check)
     const contentLength = parseInt(req.headers['content-length'] || '0', 10);

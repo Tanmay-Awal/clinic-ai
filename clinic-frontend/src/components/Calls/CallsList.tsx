@@ -163,10 +163,13 @@ function CallsTable({ calls, onCallClick, categoryFilter }: { calls: any[]; onCa
       .trim();
   };
 
-  const formatDuration = (seconds: number | null) => {
+  const formatDuration = (seconds: number | string | null | undefined) => {
     if (seconds === null || seconds === undefined) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const num = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
+    if (Number.isNaN(num)) return '0:00';
+    const totalSecs = Math.round(num);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 

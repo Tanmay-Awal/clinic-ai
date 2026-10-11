@@ -1,36 +1,72 @@
 import os
+import sys
+import requests
 from dotenv import load_dotenv
-from twilio.rest import Client
 
 load_dotenv(override=True)
+sys.stdout.reconfigure(encoding='utf-8')
 
-# Configuration
-account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+# Exotel Credentials
+api_key = os.getenv("EXOTEL_API_KEY")
+api_token = os.getenv("EXOTEL_API_TOKEN")
+acct_sid = os.getenv("EXOTEL_ACCOUNT_SID", "awaltraders1")
+exophone = os.getenv("EXOTEL_PHONE_NUMBER", "09513886363")
+flow_id = os.getenv("EXOTEL_FLOW_ID", "1358492")
 
-print(f"Loaded SID: {account_sid}")
-print(f"Loaded Token (masked): ...{auth_token[-8:] if auth_token else 'None'}")
+# Optional phone number passed via command line: python test.py <phone_number>
+if len(sys.argv) > 1:
+    raw_phone = sys.argv[1].strip().replace("+91", "").replace("-", "").replace(" ", "")
+    target_phone = f"0{raw_phone}" if not raw_phone.startswith("0") else raw_phone
+else:
+    target_phone = os.getenv("TARGET_PHONE_NUMBER", "08279450204")
 
-# REPLACE THIS WITH YOUR RUNNING NGROK URL (e.g., https://abc.ngrok-free.app)
-NGROK_URL = "https://4a1c-2a09-bac5-3e0c-7eb-00-ca-1c4.ngrok-free.app" 
+print("=" * 65)
+print("             EXOTEL OUTBOUND VOICE CALL TRIGGER")
+print("=" * 65)
+print(f"Account SID:    {acct_sid}")
+print(f"ExoPhone:       {exophone}")
+print(f"To Number:      {target_phone}")
+print(f"Flow ID:        {flow_id or 'Not specified (pass as argument)'}")
+print("=" * 65)
 
-if not account_sid or not auth_token:
-    print("Error: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set in .env")
+if not api_key or not api_token or not acct_sid:
+    print("Error: EXOTEL_API_KEY, EXOTEL_API_TOKEN, and EXOTEL_ACCOUNT_SID must be set in .env")
     exit(1)
 
-client = Client(account_sid, auth_token)
+if not flow_id:
+    print("\n[NOTE] To place an outbound call, we need your Exotel Flow ID.")
+    print("Run: python test.py <flow_id>")
+    print("\nOR: You can test INBOUND immediately by dialing your ExoPhone:")
+    print(f"    --> Call {exophone} from your phone {target_phone} <--\n")
+    exit(0)
 
-# The URL that Twilio will fetch when the call is answered.
-# This should point to your local server (proxied via ngrok).
-server_url = f"{NGROK_URL}/"
+# Exotel Outbound Connect Endpoint
+endpoint = f"https://api.exotel.com/v1/Accounts/{acct_sid}/Calls/connect.json"
+flow_url = f"http://my.exotel.com/{acct_sid}/exoml/start_voice/{flow_id}"
 
-print(f"Initiating call to your phone...")
-print(f"Server URL: {server_url}")
+payload = {
+    "From": target_phone,
+    "CallerId": exophone,
+    "Url": flow_url,
+    "CallType": "trans",
+}
 
-call = client.calls.create(
-    to="+918279450204",        # your phone
-    from_="+19086571711",      # your Twilio number
-    url=server_url
-)
+print(f"\nInitiating outbound call to {target_phone} via Exotel Flow {flow_id}...")
 
-print(f"Call initiated. SID: {call.sid}")
+try:
+    resp = requests.post(endpoint, auth=(api_key, api_token), data=payload)
+    print(f"HTTP Response Code: {resp.status_code}")
+    
+    if resp.ok:
+        data = resp.json()
+        call_sid = data.get("Call", {}).get("Sid", "Initiated")
+        print(f"\n[SUCCESS] Outbound Call placed via Exotel!")
+        print(f"Call SID: {call_sid}")
+        print("=" * 65)
+        print("Your phone will ring shortly. Answer it to speak with Saloni!")
+        print("=" * 65 + "\n")
+    else:
+        print(f"\n[ERROR] Exotel returned error: {resp.status_code}")
+        print(f"Details: {resp.text}\n")
+except Exception as e:
+    print(f"\n[FATAL] Failed to send request to Exotel: {e}\n")

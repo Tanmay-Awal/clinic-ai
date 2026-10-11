@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { getCsrfToken } from '@/utils/csrfToken';
 
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3021/api',
+    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api',
     headers: {
         'Content-Type': 'application/json',
     },

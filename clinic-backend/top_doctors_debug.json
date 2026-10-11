@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "id": "43",
+    "name": "Dr. Sarah Davis",
+    "specialization": "Pediatrics",
+    "patientCount": "6"
+  },
+  {
+    "id": "44",
+    "name": "Dr. Robert Jones",
+    "specialization": "Cardiology",
+    "patientCount": "6"
+  },
+  {
+    "id": "45",
+    "name": "Dr. Emily Chen",
+    "specialization": "General Practice",
+    "patientCount": "6"
+  },
+  {
+    "id": "47",
+    "name": "Dr. Anita Patel",
+    "specialization": "Orthopedics",
+    "patientCount": "5"
+  },
+  {
+    "id": "46",
+    "name": "Dr. Marcus Vance",
+    "specialization": "Dermatology",
+    "patientCount": "5"
+  }
+]

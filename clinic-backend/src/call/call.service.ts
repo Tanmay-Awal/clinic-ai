@@ -180,7 +180,7 @@ export class CallService {
         call_id: call.call_id,
         time: call.call_start_time,
         contact_number: call.from_number,
-        duration: call.call_duration_ms ? call.call_duration_ms / 1000 : 0,
+        duration: call.call_duration_ms ? Math.round(call.call_duration_ms / 1000) : 0,
         sentiment: call.callAnalysis?.user_sentiment || 'Neutral',
         category: call.category,
         sub_category: call.sub_category,
@@ -208,6 +208,17 @@ export class CallService {
       throw new NotFoundException(`Call with ID ${id} not found`);
     }
 
+    let parsedTranscripts: any[] = [];
+    if (Array.isArray(call.transcript)) {
+      parsedTranscripts = call.transcript;
+    } else if (typeof call.transcript === 'string') {
+      try {
+        parsedTranscripts = JSON.parse(call.transcript);
+      } catch (e) {
+        parsedTranscripts = [];
+      }
+    }
+
     return {
       id: call.id,
       retell_call_id: call.call_id,
@@ -221,7 +232,7 @@ export class CallService {
       category: call.category,
       recording_url: call.recording_url,
       created_at: call.created_at,
-      transcripts: call.transcript || [],
+      transcripts: parsedTranscripts,
       analysis: {
         id: call.callAnalysis?.id?.toString() || '',
         call_id: call.id?.toString(),

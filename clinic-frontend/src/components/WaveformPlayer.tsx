@@ -9,7 +9,7 @@ import { getCsrfToken } from '@/utils/csrfToken';
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:3021/api';
+  'http://localhost:3001/api';
 
 interface WaveformPlayerProps {
   durationSeconds: number;

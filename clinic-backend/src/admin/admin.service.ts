@@ -36,21 +36,43 @@ export class AdminService {
     // --- Organisation Settings ---
 
     async getSettings(userId: number) {
-        const user = await this.userRepo.findOne({ where: { id: userId } });
-        if (!user || !user.organisation_id) {
-            // If no org exists yet, create one for this Admin (Bootstrap logic)
-            if (user?.role === UserRole.Admin) {
-                return this.createDefaultOrganisation(user);
-            }
-            throw new NotFoundException('Organisation not found for this user');
+        let user = await this.userRepo.findOne({ where: { id: userId } });
+
+        // If user record doesn't exist, check if an existing organisation exists
+        if (!user) {
+            const existingOrg = await this.orgSettingsRepo.findOne({ where: {} });
+            if (existingOrg) return existingOrg;
+            throw new NotFoundException('User not found');
         }
 
-        const settings = await this.orgSettingsRepo.findOne({
+        // If user has no organisation linked
+        if (!user.organisation_id) {
+            const existingOrg = await this.orgSettingsRepo.findOne({ where: {} });
+            if (existingOrg) {
+                user.organisation_id = existingOrg.id;
+                await this.userRepo.save(user);
+            } else {
+                return this.createDefaultOrganisation(user);
+            }
+        }
+
+        let settings = await this.orgSettingsRepo.findOne({
             where: { id: parseInt(user.organisation_id.toString()) },
         });
 
+        // Fallback if settings record was deleted or not found
+        if (!settings) {
+            const existingOrg = await this.orgSettingsRepo.findOne({ where: {} });
+            if (existingOrg) {
+                settings = existingOrg;
+                user.organisation_id = existingOrg.id;
+                await this.userRepo.save(user);
+            } else {
+                settings = await this.createDefaultOrganisation(user);
+            }
+        }
+
         // Fetch locations for the user to return with settings
-        // This ensures the UI properly displays the saved locations
         let locations: string[] = [];
         try {
             const userLocations = await this.locationRepo.find({
@@ -58,7 +80,7 @@ export class AdminService {
             });
             locations = userLocations.map(l => l.location);
         } catch (e) {
-            console.warn("Could not fetch locations, maybe table missing?", e);
+            console.warn("Could not fetch locations", e);
         }
 
         return {

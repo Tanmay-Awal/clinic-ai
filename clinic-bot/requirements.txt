@@ -1,7 +1,7 @@
-pipecat-ai[daily,openai,deepgram,cartesia]
+pipecat-ai[openai,deepgram,cartesia]
 fastapi
 uvicorn
 requests
 python-dotenv
 twilio
-pipecat-flows
+tzdata
