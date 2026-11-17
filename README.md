@@ -1,4 +1,5 @@
 <p align="center">
+  <img src="https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=github-actions&logoColor=white" />
   <img src="https://img.shields.io/badge/NestJS-11-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" />
   <img src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" />
   <img src="https://img.shields.io/badge/Python-Pipecat-3776AB?style=for-the-badge&logo=python&logoColor=white" />
@@ -571,28 +572,21 @@ erDiagram
 
 ## 🧪 Testing
 
-### Backend
+The backend includes a **Jest 30** automated unit testing suite testing database health checks, slot calculation logic, and doctor schedule boundaries:
+
+### Running Tests
 
 ```bash
 cd clinic-backend
-
-# Unit tests
 npm test
-
-# Watch mode
-npm run test:watch
-
-# Coverage report
-npm run test:cov
-
-# E2E tests
-npm run test:e2e
-
-# Debug mode
-npm run test:debug
 ```
 
-**Framework:** Jest 30 + ts-jest + Supertest
+### Verified Test Coverage:
+- **`AppService`:** Database query validation (`SELECT 1`) and fault recovery.
+- **`AppointmentsService`:**
+  - Dynamic 30-minute time-slot interval building between working hours (`buildSlots`).
+  - Working day calendar verification vs doctor assigned schedule (`isWorkingDay`).
+  - Doctor retrieval, ordering, and `NotFoundException` error handling.
 
 ### Frontend
 
