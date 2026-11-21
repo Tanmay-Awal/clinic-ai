@@ -15,7 +15,10 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 import uvicorn
+import asyncio
 from bot import run_bot
+from tools import ingest_call
+from spool_manager import start_spool_retry_worker
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,6 +31,11 @@ logging.basicConfig(
 logger = logging.getLogger("TwilioServer")
 
 app = FastAPI()
+
+@app.on_event("startup")
+async def on_startup():
+    """Start background spool flusher to retry any offline calls."""
+    asyncio.create_task(start_spool_retry_worker(ingest_call, interval_seconds=20))
 
 app.add_middleware(
     CORSMiddleware,

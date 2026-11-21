@@ -32,6 +32,7 @@ from pipecat.frames.frames import (
 import wave
 from pipecat.flows import FlowManager, NodeConfig, FlowsFunctionSchema, FlowArgs
 from tools import get_clinic_context, get_doctors, get_available_slots, book_appointment, ingest_call
+from spool_manager import resilient_ingest, flush_spool
 from runtime import (
     classify_intent,
     ensure_runtime_state,
@@ -1350,8 +1351,8 @@ async def run_bot(websocket_client: WebSocket, stream_sid: str, call_sid: str, c
             "recording_url": f"{BACKEND_URL.replace('/api', '')}/public/recordings/{call_sid}.wav",
         }
         try:
-            await ingest_call(payload)
-            logger.info("Backend ingest completed")
+            await resilient_ingest(ingest_call, payload, max_retries=3)
+            logger.info("Backend ingest process finished")
         except Exception as e:
             logger.error(f"Failed to ingest to backend: {e}")
         try:

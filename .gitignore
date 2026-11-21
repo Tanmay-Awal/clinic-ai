@@ -42,5 +42,9 @@ Desktop.ini
 **/public/recordings/*.wav
 !**/public/recordings/.gitkeep
 
+# Bot spool files
+**/clinic-bot/spool/
+clinic-bot/spool/
+
 # Agent metadata
 .agents/
